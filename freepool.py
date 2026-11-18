@@ -201,8 +201,21 @@ def jubao_weights():
         pts_w = {}
     return remain_w, pts_w
 
-def adaptive_score(name, snapshot):
-    """0-100 综合评分"""
+# ---------------- 本人优先通道 ----------------
+# 自己用的时候请求带上特殊 Key(X-API-Key 或 Bearer 都行), 调度时:
+#   1. 评分整体加 OWNER_BOOST 分(碾压其他来源)
+#   2. 挤占排队: 高峰期本人请求插队
+#   3. 冷却豁免: 本人请求允许试冷却中的模型(优先级最高, 别人不行)
+OWNER_KEY = CONFIG.get("owner_key", "sk-owner-me-2026")
+OWNER_BOOST = 40   # 评分加成, 足够把本人排到最前
+
+def is_owner(headers):
+    auth = headers.get("Authorization", "")
+    xkey = headers.get("X-Owner-Key", "")
+    return xkey == OWNER_KEY or auth == f"Bearer {OWNER_KEY}"
+
+def adaptive_score(name, snapshot, owner=False):
+    """0-100 综合评分; owner=True 时整体加成, 保证本人请求优先"""
     s = snapshot.get(name, {"lat": None, "ok": 0, "fail": 0, "quality": 50})
     # 速度分
     lat = s.get("lat")
@@ -215,15 +228,16 @@ def adaptive_score(name, snapshot):
     remain_w, pts_w = jubao_weights()
     credit = pts_w.get(name, 0.5) * 100
     quota = remain_w.get(name, 0.5) * 100
-    return (0.35 * speed + 0.25 * success + 0.15 * quality + 0.15 * credit + 0.10 * quota)
+    base = (0.35 * speed + 0.25 * success + 0.15 * quality + 0.15 * credit + 0.10 * quota)
+    return min(200, base + (OWNER_BOOST if owner else 0))
 
-def pick_by_adaptive(candidates):
+def pick_by_adaptive(candidates, owner=False):
     """自适应策略: 综合评分排序"""
     snap = model_scores_snapshot()
-    scored = [(adaptive_score(m["name"], snap), m) for m in candidates]
+    scored = [(adaptive_score(m["name"], snap, owner), m) for m in candidates]
     scored.sort(key=lambda x: -x[0])
     if scored:
-        log.info(f"自适应评分: " + ", ".join(f"{m['name']}={sc:.0f}" for sc, m in scored))
+        log.info(f"自适应评分" + ("[本人]" if owner else "") + ": " + ", ".join(f"{m['name']}={sc:.0f}" for sc, m in scored))
     return scored[0][1] if scored else None
 
 
@@ -370,28 +384,30 @@ def probe_latencies(models):
     for t in threads: t.join(timeout=3.5)
     return results
 
-def pick_model_fast(session_id, body):
+def pick_model_fast(session_id, body, owner=False):
     """加速版选模型: 并行测延迟, 优先选 (低延迟 + 未冷却 + 会话粘性) 的模型。
-    高延迟时: 若粘性模型延迟超过阈值, 立即换最快的, 不傻等。"""
+    高延迟时: 若粘性模型延迟超过阈值, 立即换最快的, 不傻等。
+    owner=True: 冷却豁免(可用冷却中的模型), 评分加成。"""
     ordered = get_ordered_models()
-    alive = [m for m in ordered if not is_cooled_down(m["name"])]
+    if owner:
+        alive = ordered  # 本人: 冷却豁免
+    else:
+        alive = [m for m in ordered if not is_cooled_down(m["name"])]
     if not alive:
         alive = ordered
     lat = probe_latencies(alive)
-    # 按延迟排序(快的在前)
     fast = sorted(alive, key=lambda m: lat.get(m["name"], 9999))
     if CONFIG.get("session_sticky") and session_id:
         bound = SESSIONS.get(session_id)
         threshold = CONFIG.get("latency_switch_ms", 1200)
         for m in fast:
-            if m["name"] == bound and lat.get(m["name"], 9999) <= threshold:
-                return m  # 粘性且不慢, 保持
-        # 粘性模型太慢或挂了 → 自动换最快并重新绑定
+            if m["name"] == bound and (owner or lat.get(m["name"], 9999) <= threshold):
+                return m
         if fast:
-            log.info(f"会话 {session_id} 粘性模型慢/挂, 切到最快: {fast[0]['name']} ({lat.get(fast[0]['name']):.0f}ms)")
+            log.info(f"会话 {session_id} 粘性模型慢/挂" + ("[本人]" if owner else "") + f", 切到: {fast[0]['name']}")
             return fast[0]
     if CONFIG.get("route_mode") in ADAPTIVE_STRATEGIES:
-        return pick_by_adaptive(fast)
+        return pick_by_adaptive(fast, owner)
     if CONFIG.get("route_mode") == "round_robin":
         return pick_by_round_robin(fast)
     return fast[0] if fast else None
@@ -415,7 +431,7 @@ def call_upstream_fast(model_cfg, body, stream=False, connect_timeout=5):
     resp = urllib.request.urlopen(req, timeout=CONFIG.get("timeout_seconds", 60))
     return resp
 
-def try_generate(body, stream=False, session_id=None):
+def try_generate(body, stream=False, session_id=None, owner=False):
     """带自动降级+加速+策略的生成; 返回 (model_name, raw_response) 或抛异常"""
     max_retries = CONFIG.get("max_retries", 3)
     last_err = None
@@ -426,9 +442,9 @@ def try_generate(body, stream=False, session_id=None):
     for attempt in range(max_retries):
         alive = [m for m in candidates if not is_cooled_down(m["name"])] or candidates
         if strategy:
-            m = pick_by_strategy(alive, strategy)
+            m = pick_by_strategy(alive, strategy) if not owner else pick_by_adaptive(alive, True)
         else:
-            m = pick_model_fast(session_id, body)
+            m = pick_model_fast(session_id, body, owner)
         if not m:
             raise RuntimeError("无可用上游模型, 请检查 config.json")
         if m["name"] in tried and len(tried) >= len(CONFIG["models"]):
@@ -436,7 +452,7 @@ def try_generate(body, stream=False, session_id=None):
         tried.add(m["name"])
         try:
             t0 = time.time()
-            log.info(f"[{attempt+1}/{max_retries}] 路由[{strategy or CONFIG.get('route_mode')}] → {m['name']} ({m['provider']}) stream={stream}")
+            log.info(f"[{attempt+1}/{max_retries}] 路由[{strategy or CONFIG.get('route_mode')}{' [本人]' if owner else ''}] → {m['name']} ({m['provider']}) stream={stream}")
             resp = call_upstream_fast(m, body, stream)
             latency = int((time.time() - t0) * 1000)
             clear_cooldown(m["name"])
@@ -654,7 +670,8 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
             sid = extract_session_id(body, self.headers)
 
             try:
-                model_name, resp = try_generate(body, want_stream, session_id=sid)
+                model_name, resp = try_generate(body, want_stream, session_id=sid,
+                                                 owner=is_owner(self.headers))
             except Exception as e:
                 log.error(f"最终失败: {e}")
                 return self._send_json(502, {"error": {"message": str(e), "type": "all_upstreams_failed"}})

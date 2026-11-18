@@ -8,6 +8,7 @@
   "cooldown_seconds": 30,
   "max_retries": 3,
   "session_sticky": true,
+  "owner_key": "sk-owner-me-2026",
   "latency_switch_ms": 1200,
   "jubaopen_url": "http://127.0.0.1:6210",
   "models": [
