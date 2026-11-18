@@ -103,6 +103,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                      "totalRemain":total-used,"accounts":items,
                                      "signedToday": [k for k,v in db.get("signin",{}).items() if v.get("date")==today()],
                                      "unsignedToday": [i["name"] for i in items if db.get("signin",{}).get(i["name"],{}).get("date")!=today()]})
+        if self.path == "/points":
+            """慧言式积分账户: 各账号积分余额+连签天数"""
+            sg = db.get("signin", {})
+            items = [{"name": a["name"], "points": sg.get(a["name"],{}).get("total_points",0),
+                       "streak": sg.get(a["name"],{}).get("streak",0),
+                       "signedToday": sg.get(a["name"],{}).get("date")==today()}
+                      for a in db["accounts"]]
+            return self._json(200, {"date":today(),"accounts":items,
+                                     "totalPoints": sum(i["points"] for i in items)})
+        return self._json(404, {"error":"not found"})
         return self._json(404, {"error":"not found"})
 
     def do_POST(self):
@@ -170,16 +180,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if rec.get("date") == today():
                     results.append({"name":a["name"],"ok":False,"message":"今日已签到","reward":rec.get("reward",0)})
                     continue
-                bonus = reward + a.get("daily_quota", 0)  # 签到后当日额度刷新+奖励
-                a["daily_quota"] = a.get("daily_quota", 0) + reward
-                sg[a["name"]] = {"date": today(), "reward": reward, "streak": rec.get("streak",0)+1}
-                gained += reward
-                results.append({"name":a["name"],"ok":True,"message":f"签到成功 +{reward}","reward":reward,"streak":sg[a["name"]]["streak"]})
+                streak = rec.get("streak", 0) + 1
+                # 慧言式连续签到奖励: 每7天连续额外+20
+                bonus_streak = 20 if streak % 7 == 0 else 0
+                total_reward = reward + bonus_streak
+                a["daily_quota"] = a.get("daily_quota", 0) + total_reward
+                sg[a["name"]] = {"date": today(), "reward": total_reward,
+                                  "streak": streak, "total_points": rec.get("total_points",0)+total_reward}
+                gained += total_reward
+                msg = f"签到成功 +{total_reward}" + (f"(连续{streak}天奖励+{bonus_streak})" if bonus_streak else "")
+                results.append({"name":a["name"],"ok":True,"message":msg,"reward":total_reward,
+                                 "streak":streak,"points":sg[a["name"]]["total_points"]})
             save_db(db)
             ok_n = sum(1 for r in results if r["ok"])
             return self._json(200, {"ok":True,"signedIn":ok_n,"skipped":len(results)-ok_n,
                                      "gained":gained,"results":results,
-                                     "message":f"签到完成: {ok_n} 成功 / {len(results)-ok_n} 已签过, 共领 {gained} 额度"})
+                                     "message":f"签到完成: {ok_n} 成功 / {len(results)-ok_n} 已签过, 共领 {gained} 积分"})
+        if self.path == "/points":
+            """慧言式积分账户: 各账号积分余额+连签天数"""
+            sg = db.get("signin", {})
+            items = [{"name": a["name"], "points": sg.get(a["name"],{}).get("total_points",0),
+                       "streak": sg.get(a["name"],{}).get("streak",0),
+                       "signedToday": sg.get(a["name"],{}).get("date")==today()}
+                      for a in db["accounts"]]
+            return self._json(200, {"date":today(),"accounts":items,
+                                     "totalPoints": sum(i["points"] for i in items)})
         return self._json(404, {"error":"not found"})
 
 class TS(socketserver.ThreadingMixIn, http.server.HTTPServer):

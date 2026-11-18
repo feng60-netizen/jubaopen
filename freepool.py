@@ -166,6 +166,53 @@ def pick_by_round_robin(candidates):
         RR_INDEX += 1
     return m
 
+# ---------------- Magpie 式路由策略 ----------------
+# 智能auto / 按顺序priority / 轮流round_robin / 用量少优先least_used / 免费优先free_first / 速度优先speed_first
+def pick_by_strategy(candidates, strategy=None):
+    strategy = strategy or CONFIG.get("route_mode", "priority")
+    if strategy == "round_robin":
+        return pick_by_round_robin(candidates)
+    if strategy == "least_used":
+        # 今日用量最少的优先(从聚宝盆读, 读不到按优先级)
+        try:
+            q = json.loads(urllib.request.urlopen(f"{JUBAO_URL}/quota", timeout=2).read().decode())
+            used = {a["name"]: a.get("usedToday", 0) for a in q.get("accounts", [])}
+            return sorted(candidates, key=lambda m: used.get(m["name"], 0))[0]
+        except Exception:
+            return candidates[0]
+    if strategy == "free_first":
+        # 标记 free:true 的模型优先, 其次按优先级
+        free = [m for m in candidates if m.get("free")]
+        return (free or candidates)[0]
+    if strategy == "speed_first":
+        # 并行测延迟, 最快优先
+        lat = probe_latencies(candidates)
+        return sorted(candidates, key=lambda m: lat.get(m["name"], 9999))[0]
+    # smart / priority: 优先级顺序, 但综合延迟微调
+    return candidates[0]
+
+# auto 路由模型名: free-pool / free-pool:fast / free-pool:smart
+def resolve_auto_model(model_name):
+    """返回 (路由策略, 指定模型名或None)。支持:
+    free-pool → 按配置默认策略
+    free-pool:fast → 速度优先
+    free-pool:smart → 智能(优先级+延迟)
+    free-pool:free → 免费优先
+    free-pool:least → 用量少优先
+    free-pool:轮 → 轮流
+    free-pool:glm-4-flash → 指定具体模型"""
+    if not model_name or model_name in (CONFIG.get("model_name"), "auto"):
+        return None, None
+    if ":" in model_name:
+        pfx, tag = model_name.split(":", 1)
+        if pfx in (CONFIG.get("model_name"), "auto"):
+            m = {"fast": "speed_first", "smart": "smart", "free": "free_first",
+                 "least": "least_used", "轮": "round_robin", "robin": "round_robin"}.get(tag)
+            if m:
+                return m, None
+            return None, tag  # 具体模型名
+    return None, model_name  # 直接指定模型名
+
 def pick_model(session_id):
     """按策略选模型; 会话粘性优先"""
     ordered = get_ordered_models()
@@ -295,24 +342,31 @@ def call_upstream_fast(model_cfg, body, stream=False, connect_timeout=5):
     return resp
 
 def try_generate(body, stream=False, session_id=None):
-    """带自动降级+加速的生成; 返回 (model_name, raw_response) 或抛异常"""
+    """带自动降级+加速+策略的生成; 返回 (model_name, raw_response) 或抛异常"""
     max_retries = CONFIG.get("max_retries", 3)
     last_err = None
     tried = set()
+    # 解析 auto 路由名
+    strategy, pinned = resolve_auto_model(body.get("model"))
+    candidates = [m for m in get_ordered_models() if not pinned or m["name"] == pinned or m["model"] == pinned]
     for attempt in range(max_retries):
-        m = pick_model_fast(session_id, body)
+        alive = [m for m in candidates if not is_cooled_down(m["name"])] or candidates
+        if strategy:
+            m = pick_by_strategy(alive, strategy)
+        else:
+            m = pick_model_fast(session_id, body)
         if not m:
             raise RuntimeError("无可用上游模型, 请检查 config.json")
         if m["name"] in tried and len(tried) >= len(CONFIG["models"]):
             break
         tried.add(m["name"])
         try:
-            log.info(f"[{attempt+1}/{max_retries}] 路由 → {m['name']} ({m['provider']}) stream={stream}")
+            log.info(f"[{attempt+1}/{max_retries}] 路由[{strategy or 'sticky'}] → {m['name']} ({m['provider']}) stream={stream}")
             resp = call_upstream_fast(m, body, stream)
             clear_cooldown(m["name"])
             with STATE_LOCK:
                 FAIL_COUNT[m["name"]] = 0
-            jubao_record_use(m["name"], 1)  # 聚宝盆记账
+            jubao_record_use(m["name"], 1)
             return m["name"], resp
         except urllib.error.HTTPError as e:
             code = e.code
@@ -368,6 +422,21 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
                     "status": "cooldown" if cooled else "healthy"
                 })
             return self._send_json(200, {"object": "list", "data": data})
+        if self.path == "/catalog":
+            """TryModels 式: 免费模型目录(本池 + 公共免费源快照)"""
+            mine = [{"id": m["name"], "provider": m.get("provider"), "free": bool(m.get("free")),
+                      "status": "healthy" if not is_cooled_down(m["name"]) else "cooldown"}
+                     for m in CONFIG["models"] if m.get("enabled", True)]
+            public = [
+                {"id": "glm-4-flash", "provider": "zhipu", "note": "智谱免费高速", "signup": "open.bigmodel.cn"},
+                {"id": "qwen-turbo", "provider": "dashscope", "note": "阿里免费额度", "signup": "dashscope.aliyuncs.com"},
+                {"id": "deepseek-chat", "provider": "deepseek", "note": "注册赠额度", "signup": "platform.deepseek.com"},
+                {"id": "kimi-k2", "provider": "moonshot", "note": "月之暗面免费档", "signup": "platform.moonshot.cn"},
+                {"id": "hunyuan-lite", "provider": "tencent", "note": "腾讯混元免费", "signup": "cloud.tencent.com"},
+                {"id": "grok-mini-free", "provider": "xai", "note": "xAI 免费档", "signup": "console.x.ai"},
+            ]
+            return self._send_json(200, {"mine": mine, "public": public,
+                                          "note": "public 为免费模型目录快照, 注册后加进 config.json 即可入池"})
         if self.path == "/health":
             return self._send_json(200, {"status": "ok", "models": len(CONFIG["models"])})
         # FreePool 插件聚合接口
@@ -528,6 +597,40 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
                 return self._send_json(200, up)
             except Exception as e:
                 return self._send_json(502, {"error": {"message": f"upstream read error: {e}"}})
+
+        # Cherry Studio 式一问多答: 并行发给N个模型对比
+        if self.path in ("/v1/compare", "/compare"):
+            if not self._auth_ok():
+                return self._send_json(401, {"error": {"message": "invalid api key"}})
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+            except Exception as e:
+                return self._send_json(400, {"error": {"message": f"bad request: {e}"}})
+            targets = [m for m in CONFIG["models"] if m.get("enabled", True)][:4]
+            results, lock = [], threading.Lock()
+            def _ask(m):
+                try:
+                    payload = dict(body); payload["model"] = m["model"]; payload["stream"] = False
+                    data = json.dumps(payload).encode()
+                    req = urllib.request.Request(m["base_url"], data=data,
+                        headers={"Content-Type": "application/json",
+                                 "Authorization": f"Bearer {m['api_key']}"}, method="POST")
+                    t0 = time.time()
+                    raw = urllib.request.urlopen(req, timeout=CONFIG.get("timeout_seconds", 60)).read()
+                    up = json.loads(raw.decode())
+                    text = (up.get("choices") or [{}])[0].get("message", {}).get("content", "")
+                    with lock:
+                        results.append({"model": m["name"], "ok": True, "latencyMs": int((time.time()-t0)*1000),
+                                         "content": text, "usage": up.get("usage")})
+                except Exception as e:
+                    with lock:
+                        results.append({"model": m["name"], "ok": False, "error": str(e)[:120]})
+            threads = [threading.Thread(target=_ask, args=(m,), daemon=True) for m in targets]
+            for t in threads: t.start()
+            for t in threads: t.join(timeout=CONFIG.get("timeout_seconds", 60) + 2)
+            return self._send_json(200, {"compare": results, "asked": len(targets),
+                                          "note": "同一问题并行发给所有启用模型, 一问多答横向对比"})
 
         # embeddings: 取第一个启用 embeddings 的模型
         if self.path in ("/v1/embeddings", "/embeddings"):
