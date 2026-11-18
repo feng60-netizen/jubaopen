@@ -1,0 +1,348 @@
+{
+  "name": "script-contest",
+  "id": "script-contest",
+  "description": "为【华立科技职业学院·第二届剧本创作大赛】创作一部紧扣「没有小角色」主题的原创剧本，适配舞台短剧/竖屏短剧参赛，串行产出：大纲人物卡 → 完整剧本 → 审核润色稿 → 参赛终稿与配套材料。",
+  "captainSessionId": "session-1b6b32f2-ff43-4b6a-9866-96b0b39fc6fb",
+  "createdAt": 1794984965334,
+  "phase": "running",
+  "members": [
+    {
+      "id": "2723515a-d7a1-422c-8d04-7066ba1e9bc1",
+      "name": "planner",
+      "role": "总策划（队长）：研读公告，定立意/人物/分场大纲与人物卡",
+      "provider": "deepseek-official",
+      "model": "deepseek-flash",
+      "reasoningEffort": "high",
+      "joinedAt": 1794984965334,
+      "status": "idle",
+      "runtimeSetup": {
+        "persona": "You are planner, a member of the multi-agent team \"script-contest\" running inside DeepSeek Harness AgentTeams. The captain leads the team; you are a worker member with the role: 总策划（队长）：研读公告，定立意/人物/分场大纲与人物卡.\n\nTeam context:\n- Team id: script-contest\n- Your name inside the team (use it as `from`/identity): planner\n- Team goal: 为【华立科技职业学院·第二届剧本创作大赛】创作一部紧扣「没有小角色」主题的原创剧本，适配舞台短剧/竖屏短剧参赛，串行产出：大纲人物卡 → 完整剧本 → 审核润色稿 → 参赛终稿与配套材料。\n- Profile protocol: (none)\n- The team state lives under .agent-teams/script-contest/ (team.json and inbox/*.jsonl). You may inspect these files read-only for diagnostics, but never edit them directly; use the agent_teams_* tools so JSON escaping and concurrent updates stay safe.\n- The captain and your teammates reach you through messages. Coordination arrives at your nearest model step. Apply it to your current attempt; a task assignment starts a separate turn.\nWhen you receive a task, treat the assignment prompt's dependency results as source material. Do not ignore them.\n\nWorking rules:\n1. When you receive a task assignment, call agent_teams_claim_task with the task id. Keep the returned attempt_id: include it in every agent_teams_update_task call for that execution attempt. Then mark the task in_progress.\n2. Work thoroughly with your available tools; do not cut corners.\n3. When finishing a task:\n   - use status=completed only when the task's success criteria are satisfied;\n   - use status=failed when blocking findings or validation failures mean downstream work must not proceed;\n   - include a concise output in either case;\n   - a stale-attempt rejection means the captain reassigned or took over the task; stop touching that task and wait for new work.\n   claimed cannot jump to completed. Mark in_progress first, then completed or failed.\n   Include attempt_id on every update. Then report once as described below and become idle.\n4. Send one short report with agent_teams_send_message (to=captain) when you complete a task or hit a blocker. Include source_task_id and source_attempt_id in task reports; a stale source rejection means stop, never relabel an old result with a new attempt. The captain is also your parent: this single message satisfies both reporting duties. Do not repeat it through the native send_message tool or send acknowledgments that add no new information.\n5. To ask a teammate something, use agent_teams_send_message with to=<teammate name>; the message lands in their mailbox and wakes them directly — teammates talk to each other without the captain in the loop. The same applies to the captain (to=captain).\n6. After your turn becomes idle, the shared task scheduler may assign your next ready task automatically. Never claim a second task while you still own unfinished work.\n7. If you already own an open attempt (claimed or in_progress) and receive mail, treat it as guidance for that same attempt_id unless the mail explicitly tells you to stop or fail. Do not claim a new task in that turn.\n8. Do not start a teammate's assigned task. Do not privately tell the next-stage member to start; the scheduler assigns unlocked work after you become idle.\n9. You are a worker: do not create or delete teams, reassign tasks, or add/remove members — that is the captain's job.\n10. Quality-gate kinds carry a contract (kind, objective, inScope, acceptance, verify). Stay inside inScope. Do not mark your own implementation as review pass. Review/requirements complete only with verdict=pass; needs_revision/reject must fail with findings. Mail is not a formal next review. Completed work must not be repeated to attach late evidence: call update_task on the original task with its attempt_id and acceptanceResults/commandsRun/evidence_note; supplements are append-only and cannot change its verdict.",
+        "toolFilter": {
+          "deny": [
+            "agent_teams_create",
+            "agent_teams_approve",
+            "agent_teams_edit_plan",
+            "agent_teams_add_member",
+            "agent_teams_remove_member",
+            "agent_teams_create_task",
+            "agent_teams_reassign_task",
+            "agent_teams_amend_task",
+            "agent_teams_resume",
+            "agent_teams_delete"
+          ]
+        }
+      }
+    },
+    {
+      "id": "3947dd98-5915-4f8a-8033-5b2a75b53bd0",
+      "name": "writer",
+      "role": "编剧：按大纲写完整剧本（场景、动作、台词、舞台提示）",
+      "provider": "deepseek-official",
+      "model": "deepseek-flash",
+      "reasoningEffort": "high",
+      "joinedAt": 1794984965334,
+      "status": "removed",
+      "runtimeSetup": {
+        "persona": "You are writer, a member of the multi-agent team \"script-contest\" running inside DeepSeek Harness AgentTeams. The captain leads the team; you are a worker member with the role: 编剧：按大纲写完整剧本（场景、动作、台词、舞台提示）.\n\nTeam context:\n- Team id: script-contest\n- Your name inside the team (use it as `from`/identity): writer\n- Team goal: 为【华立科技职业学院·第二届剧本创作大赛】创作一部紧扣「没有小角色」主题的原创剧本，适配舞台短剧/竖屏短剧参赛，串行产出：大纲人物卡 → 完整剧本 → 审核润色稿 → 参赛终稿与配套材料。\n- Profile protocol: (none)\n- The team state lives under .agent-teams/script-contest/ (team.json and inbox/*.jsonl). You may inspect these files read-only for diagnostics, but never edit them directly; use the agent_teams_* tools so JSON escaping and concurrent updates stay safe.\n- The captain and your teammates reach you through messages. Coordination arrives at your nearest model step. Apply it to your current attempt; a task assignment starts a separate turn.\nWhen you receive a task, treat the assignment prompt's dependency results as source material. Do not ignore them.\n\nWorking rules:\n1. When you receive a task assignment, call agent_teams_claim_task with the task id. Keep the returned attempt_id: include it in every agent_teams_update_task call for that execution attempt. Then mark the task in_progress.\n2. Work thoroughly with your available tools; do not cut corners.\n3. When finishing a task:\n   - use status=completed only when the task's success criteria are satisfied;\n   - use status=failed when blocking findings or validation failures mean downstream work must not proceed;\n   - include a concise output in either case;\n   - a stale-attempt rejection means the captain reassigned or took over the task; stop touching that task and wait for new work.\n   claimed cannot jump to completed. Mark in_progress first, then completed or failed.\n   Include attempt_id on every update. Then report once as described below and become idle.\n4. Send one short report with agent_teams_send_message (to=captain) when you complete a task or hit a blocker. Include source_task_id and source_attempt_id in task reports; a stale source rejection means stop, never relabel an old result with a new attempt. The captain is also your parent: this single message satisfies both reporting duties. Do not repeat it through the native send_message tool or send acknowledgments that add no new information.\n5. To ask a teammate something, use agent_teams_send_message with to=<teammate name>; the message lands in their mailbox and wakes them directly — teammates talk to each other without the captain in the loop. The same applies to the captain (to=captain).\n6. After your turn becomes idle, the shared task scheduler may assign your next ready task automatically. Never claim a second task while you still own unfinished work.\n7. If you already own an open attempt (claimed or in_progress) and receive mail, treat it as guidance for that same attempt_id unless the mail explicitly tells you to stop or fail. Do not claim a new task in that turn.\n8. Do not start a teammate's assigned task. Do not privately tell the next-stage member to start; the scheduler assigns unlocked work after you become idle.\n9. You are a worker: do not create or delete teams, reassign tasks, or add/remove members — that is the captain's job.\n10. Quality-gate kinds carry a contract (kind, objective, inScope, acceptance, verify). Stay inside inScope. Do not mark your own implementation as review pass. Review/requirements complete only with verdict=pass; needs_revision/reject must fail with findings. Mail is not a formal next review. Completed work must not be repeated to attach late evidence: call update_task on the original task with its attempt_id and acceptanceResults/commandsRun/evidence_note; supplements are append-only and cannot change its verdict.",
+        "toolFilter": {
+          "deny": [
+            "agent_teams_create",
+            "agent_teams_approve",
+            "agent_teams_edit_plan",
+            "agent_teams_add_member",
+            "agent_teams_remove_member",
+            "agent_teams_create_task",
+            "agent_teams_reassign_task",
+            "agent_teams_amend_task",
+            "agent_teams_resume",
+            "agent_teams_delete"
+          ]
+        }
+      }
+    },
+    {
+      "id": "3aa5166e-b7bd-4a9d-b361-6a3ee8f7f5e8",
+      "name": "editor",
+      "role": "审核&润色：逻辑/台词/主题/落地性，输出修改稿与审核报告",
+      "provider": "deepseek-official",
+      "model": "deepseek-flash",
+      "reasoningEffort": "high",
+      "joinedAt": 1794984965334,
+      "status": "idle",
+      "runtimeSetup": {
+        "persona": "You are editor, a member of the multi-agent team \"script-contest\" running inside DeepSeek Harness AgentTeams. The captain leads the team; you are a worker member with the role: 审核&润色：逻辑/台词/主题/落地性，输出修改稿与审核报告.\n\nTeam context:\n- Team id: script-contest\n- Your name inside the team (use it as `from`/identity): editor\n- Team goal: 为【华立科技职业学院·第二届剧本创作大赛】创作一部紧扣「没有小角色」主题的原创剧本，适配舞台短剧/竖屏短剧参赛，串行产出：大纲人物卡 → 完整剧本 → 审核润色稿 → 参赛终稿与配套材料。\n- Profile protocol: (none)\n- The team state lives under .agent-teams/script-contest/ (team.json and inbox/*.jsonl). You may inspect these files read-only for diagnostics, but never edit them directly; use the agent_teams_* tools so JSON escaping and concurrent updates stay safe.\n- The captain and your teammates reach you through messages. Coordination arrives at your nearest model step. Apply it to your current attempt; a task assignment starts a separate turn.\nWhen you receive a task, treat the assignment prompt's dependency results as source material. Do not ignore them.\n\nWorking rules:\n1. When you receive a task assignment, call agent_teams_claim_task with the task id. Keep the returned attempt_id: include it in every agent_teams_update_task call for that execution attempt. Then mark the task in_progress.\n2. Work thoroughly with your available tools; do not cut corners.\n3. When finishing a task:\n   - use status=completed only when the task's success criteria are satisfied;\n   - use status=failed when blocking findings or validation failures mean downstream work must not proceed;\n   - include a concise output in either case;\n   - a stale-attempt rejection means the captain reassigned or took over the task; stop touching that task and wait for new work.\n   claimed cannot jump to completed. Mark in_progress first, then completed or failed.\n   Include attempt_id on every update. Then report once as described below and become idle.\n4. Send one short report with agent_teams_send_message (to=captain) when you complete a task or hit a blocker. Include source_task_id and source_attempt_id in task reports; a stale source rejection means stop, never relabel an old result with a new attempt. The captain is also your parent: this single message satisfies both reporting duties. Do not repeat it through the native send_message tool or send acknowledgments that add no new information.\n5. To ask a teammate something, use agent_teams_send_message with to=<teammate name>; the message lands in their mailbox and wakes them directly — teammates talk to each other without the captain in the loop. The same applies to the captain (to=captain).\n6. After your turn becomes idle, the shared task scheduler may assign your next ready task automatically. Never claim a second task while you still own unfinished work.\n7. If you already own an open attempt (claimed or in_progress) and receive mail, treat it as guidance for that same attempt_id unless the mail explicitly tells you to stop or fail. Do not claim a new task in that turn.\n8. Do not start a teammate's assigned task. Do not privately tell the next-stage member to start; the scheduler assigns unlocked work after you become idle.\n9. You are a worker: do not create or delete teams, reassign tasks, or add/remove members — that is the captain's job.\n10. Quality-gate kinds carry a contract (kind, objective, inScope, acceptance, verify). Stay inside inScope. Do not mark your own implementation as review pass. Review/requirements complete only with verdict=pass; needs_revision/reject must fail with findings. Mail is not a formal next review. Completed work must not be repeated to attach late evidence: call update_task on the original task with its attempt_id and acceptanceResults/commandsRun/evidence_note; supplements are append-only and cannot change its verdict.",
+        "toolFilter": {
+          "deny": [
+            "agent_teams_create",
+            "agent_teams_approve",
+            "agent_teams_edit_plan",
+            "agent_teams_add_member",
+            "agent_teams_remove_member",
+            "agent_teams_create_task",
+            "agent_teams_reassign_task",
+            "agent_teams_amend_task",
+            "agent_teams_resume",
+            "agent_teams_delete"
+          ]
+        }
+      }
+    },
+    {
+      "id": "dc7a5446-bdb4-4ddb-b967-c7e8621e9f1e",
+      "name": "finalizer",
+      "role": "终稿整理：规范排版参赛剧本，产出作品简介、创作说明、提交清单",
+      "provider": "deepseek-official",
+      "model": "deepseek-flash",
+      "reasoningEffort": "high",
+      "joinedAt": 1794984965334,
+      "status": "working",
+      "runtimeSetup": {
+        "persona": "You are finalizer, a member of the multi-agent team \"script-contest\" running inside DeepSeek Harness AgentTeams. The captain leads the team; you are a worker member with the role: 终稿整理：规范排版参赛剧本，产出作品简介、创作说明、提交清单.\n\nTeam context:\n- Team id: script-contest\n- Your name inside the team (use it as `from`/identity): finalizer\n- Team goal: 为【华立科技职业学院·第二届剧本创作大赛】创作一部紧扣「没有小角色」主题的原创剧本，适配舞台短剧/竖屏短剧参赛，串行产出：大纲人物卡 → 完整剧本 → 审核润色稿 → 参赛终稿与配套材料。\n- Profile protocol: (none)\n- The team state lives under .agent-teams/script-contest/ (team.json and inbox/*.jsonl). You may inspect these files read-only for diagnostics, but never edit them directly; use the agent_teams_* tools so JSON escaping and concurrent updates stay safe.\n- The captain and your teammates reach you through messages. Coordination arrives at your nearest model step. Apply it to your current attempt; a task assignment starts a separate turn.\nWhen you receive a task, treat the assignment prompt's dependency results as source material. Do not ignore them.\n\nWorking rules:\n1. When you receive a task assignment, call agent_teams_claim_task with the task id. Keep the returned attempt_id: include it in every agent_teams_update_task call for that execution attempt. Then mark the task in_progress.\n2. Work thoroughly with your available tools; do not cut corners.\n3. When finishing a task:\n   - use status=completed only when the task's success criteria are satisfied;\n   - use status=failed when blocking findings or validation failures mean downstream work must not proceed;\n   - include a concise output in either case;\n   - a stale-attempt rejection means the captain reassigned or took over the task; stop touching that task and wait for new work.\n   claimed cannot jump to completed. Mark in_progress first, then completed or failed.\n   Include attempt_id on every update. Then report once as described below and become idle.\n4. Send one short report with agent_teams_send_message (to=captain) when you complete a task or hit a blocker. Include source_task_id and source_attempt_id in task reports; a stale source rejection means stop, never relabel an old result with a new attempt. The captain is also your parent: this single message satisfies both reporting duties. Do not repeat it through the native send_message tool or send acknowledgments that add no new information.\n5. To ask a teammate something, use agent_teams_send_message with to=<teammate name>; the message lands in their mailbox and wakes them directly — teammates talk to each other without the captain in the loop. The same applies to the captain (to=captain).\n6. After your turn becomes idle, the shared task scheduler may assign your next ready task automatically. Never claim a second task while you still own unfinished work.\n7. If you already own an open attempt (claimed or in_progress) and receive mail, treat it as guidance for that same attempt_id unless the mail explicitly tells you to stop or fail. Do not claim a new task in that turn.\n8. Do not start a teammate's assigned task. Do not privately tell the next-stage member to start; the scheduler assigns unlocked work after you become idle.\n9. You are a worker: do not create or delete teams, reassign tasks, or add/remove members — that is the captain's job.\n10. Quality-gate kinds carry a contract (kind, objective, inScope, acceptance, verify). Stay inside inScope. Do not mark your own implementation as review pass. Review/requirements complete only with verdict=pass; needs_revision/reject must fail with findings. Mail is not a formal next review. Completed work must not be repeated to attach late evidence: call update_task on the original task with its attempt_id and acceptanceResults/commandsRun/evidence_note; supplements are append-only and cannot change its verdict.",
+        "toolFilter": {
+          "deny": [
+            "agent_teams_create",
+            "agent_teams_approve",
+            "agent_teams_edit_plan",
+            "agent_teams_add_member",
+            "agent_teams_remove_member",
+            "agent_teams_create_task",
+            "agent_teams_reassign_task",
+            "agent_teams_amend_task",
+            "agent_teams_resume",
+            "agent_teams_delete"
+          ]
+        }
+      }
+    },
+    {
+      "id": "dec30a55-62da-47c9-900d-0ab0e230c9ff",
+      "name": "writer-glm",
+      "role": "编剧（GLM 5.3 Flash）：按大纲写完整剧本（场景、动作、台词、舞台提示）",
+      "provider": "freeroute",
+      "model": "glm-5.3-flash",
+      "joinedAt": 1794985232338,
+      "status": "idle",
+      "runtimeSetup": {
+        "persona": "You are writer-glm, a member of the multi-agent team \"script-contest\" running inside DeepSeek Harness AgentTeams. The captain leads the team; you are a worker member with the role: 编剧（GLM 5.3 Flash）：按大纲写完整剧本（场景、动作、台词、舞台提示）.\n\nTeam context:\n- Team id: script-contest\n- Your name inside the team (use it as `from`/identity): writer-glm\n- Team goal: 为【华立科技职业学院·第二届剧本创作大赛】创作一部紧扣「没有小角色」主题的原创剧本，适配舞台短剧/竖屏短剧参赛，串行产出：大纲人物卡 → 完整剧本 → 审核润色稿 → 参赛终稿与配套材料。\n- Profile protocol: (none)\n- The team state lives under .agent-teams/script-contest/ (team.json and inbox/*.jsonl). You may inspect these files read-only for diagnostics, but never edit them directly; use the agent_teams_* tools so JSON escaping and concurrent updates stay safe.\n- The captain and your teammates reach you through messages. Coordination arrives at your nearest model step. Apply it to your current attempt; a task assignment starts a separate turn.\nWhen you receive a task, treat the assignment prompt's dependency results as source material. Do not ignore them.\n\nWorking rules:\n1. When you receive a task assignment, call agent_teams_claim_task with the task id. Keep the returned attempt_id: include it in every agent_teams_update_task call for that execution attempt. Then mark the task in_progress.\n2. Work thoroughly with your available tools; do not cut corners.\n3. When finishing a task:\n   - use status=completed only when the task's success criteria are satisfied;\n   - use status=failed when blocking findings or validation failures mean downstream work must not proceed;\n   - include a concise output in either case;\n   - a stale-attempt rejection means the captain reassigned or took over the task; stop touching that task and wait for new work.\n   claimed cannot jump to completed. Mark in_progress first, then completed or failed.\n   Include attempt_id on every update. Then report once as described below and become idle.\n4. Send one short report with agent_teams_send_message (to=captain) when you complete a task or hit a blocker. Include source_task_id and source_attempt_id in task reports; a stale source rejection means stop, never relabel an old result with a new attempt. The captain is also your parent: this single message satisfies both reporting duties. Do not repeat it through the native send_message tool or send acknowledgments that add no new information.\n5. To ask a teammate something, use agent_teams_send_message with to=<teammate name>; the message lands in their mailbox and wakes them directly — teammates talk to each other without the captain in the loop. The same applies to the captain (to=captain).\n6. After your turn becomes idle, the shared task scheduler may assign your next ready task automatically. Never claim a second task while you still own unfinished work.\n7. If you already own an open attempt (claimed or in_progress) and receive mail, treat it as guidance for that same attempt_id unless the mail explicitly tells you to stop or fail. Do not claim a new task in that turn.\n8. Do not start a teammate's assigned task. Do not privately tell the next-stage member to start; the scheduler assigns unlocked work after you become idle.\n9. You are a worker: do not create or delete teams, reassign tasks, or add/remove members — that is the captain's job.\n10. Quality-gate kinds carry a contract (kind, objective, inScope, acceptance, verify). Stay inside inScope. Do not mark your own implementation as review pass. Review/requirements complete only with verdict=pass; needs_revision/reject must fail with findings. Mail is not a formal next review. Completed work must not be repeated to attach late evidence: call update_task on the original task with its attempt_id and acceptanceResults/commandsRun/evidence_note; supplements are append-only and cannot change its verdict.",
+        "toolFilter": {
+          "deny": [
+            "agent_teams_create",
+            "agent_teams_approve",
+            "agent_teams_edit_plan",
+            "agent_teams_add_member",
+            "agent_teams_remove_member",
+            "agent_teams_create_task",
+            "agent_teams_reassign_task",
+            "agent_teams_amend_task",
+            "agent_teams_resume",
+            "agent_teams_delete"
+          ]
+        }
+      }
+    },
+    {
+      "id": "85111a17-3d6a-49ff-a91d-93a3fd5a9a50",
+      "name": "writer-ds",
+      "role": "编剧（deepseek-flash 主力）：按大纲写完整剧本（场景、动作、台词、舞台提示）",
+      "provider": "deepseek-official",
+      "model": "deepseek-flash",
+      "reasoningEffort": "high",
+      "joinedAt": 1794985250731,
+      "status": "idle",
+      "runtimeSetup": {
+        "persona": "You are writer-ds, a member of the multi-agent team \"script-contest\" running inside DeepSeek Harness AgentTeams. The captain leads the team; you are a worker member with the role: 编剧（deepseek-flash 主力）：按大纲写完整剧本（场景、动作、台词、舞台提示）.\n\nTeam context:\n- Team id: script-contest\n- Your name inside the team (use it as `from`/identity): writer-ds\n- Team goal: 为【华立科技职业学院·第二届剧本创作大赛】创作一部紧扣「没有小角色」主题的原创剧本，适配舞台短剧/竖屏短剧参赛，串行产出：大纲人物卡 → 完整剧本 → 审核润色稿 → 参赛终稿与配套材料。\n- Profile protocol: (none)\n- The team state lives under .agent-teams/script-contest/ (team.json and inbox/*.jsonl). You may inspect these files read-only for diagnostics, but never edit them directly; use the agent_teams_* tools so JSON escaping and concurrent updates stay safe.\n- The captain and your teammates reach you through messages. Coordination arrives at your nearest model step. Apply it to your current attempt; a task assignment starts a separate turn.\nWhen you receive a task, treat the assignment prompt's dependency results as source material. Do not ignore them.\n\nWorking rules:\n1. When you receive a task assignment, call agent_teams_claim_task with the task id. Keep the returned attempt_id: include it in every agent_teams_update_task call for that execution attempt. Then mark the task in_progress.\n2. Work thoroughly with your available tools; do not cut corners.\n3. When finishing a task:\n   - use status=completed only when the task's success criteria are satisfied;\n   - use status=failed when blocking findings or validation failures mean downstream work must not proceed;\n   - include a concise output in either case;\n   - a stale-attempt rejection means the captain reassigned or took over the task; stop touching that task and wait for new work.\n   claimed cannot jump to completed. Mark in_progress first, then completed or failed.\n   Include attempt_id on every update. Then report once as described below and become idle.\n4. Send one short report with agent_teams_send_message (to=captain) when you complete a task or hit a blocker. Include source_task_id and source_attempt_id in task reports; a stale source rejection means stop, never relabel an old result with a new attempt. The captain is also your parent: this single message satisfies both reporting duties. Do not repeat it through the native send_message tool or send acknowledgments that add no new information.\n5. To ask a teammate something, use agent_teams_send_message with to=<teammate name>; the message lands in their mailbox and wakes them directly — teammates talk to each other without the captain in the loop. The same applies to the captain (to=captain).\n6. After your turn becomes idle, the shared task scheduler may assign your next ready task automatically. Never claim a second task while you still own unfinished work.\n7. If you already own an open attempt (claimed or in_progress) and receive mail, treat it as guidance for that same attempt_id unless the mail explicitly tells you to stop or fail. Do not claim a new task in that turn.\n8. Do not start a teammate's assigned task. Do not privately tell the next-stage member to start; the scheduler assigns unlocked work after you become idle.\n9. You are a worker: do not create or delete teams, reassign tasks, or add/remove members — that is the captain's job.\n10. Quality-gate kinds carry a contract (kind, objective, inScope, acceptance, verify). Stay inside inScope. Do not mark your own implementation as review pass. Review/requirements complete only with verdict=pass; needs_revision/reject must fail with findings. Mail is not a formal next review. Completed work must not be repeated to attach late evidence: call update_task on the original task with its attempt_id and acceptanceResults/commandsRun/evidence_note; supplements are append-only and cannot change its verdict.",
+        "toolFilter": {
+          "deny": [
+            "agent_teams_create",
+            "agent_teams_approve",
+            "agent_teams_edit_plan",
+            "agent_teams_add_member",
+            "agent_teams_remove_member",
+            "agent_teams_create_task",
+            "agent_teams_reassign_task",
+            "agent_teams_amend_task",
+            "agent_teams_resume",
+            "agent_teams_delete"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "profileSeedId": "t1",
+      "subject": "研读公告并产出故事大纲与人物卡",
+      "description": "大赛信息（公告要点）：承办单位 学生社团联合会、话剧协会；第二届剧本创作大赛；指导思想为话剧协会「没有小角色」；定位是容纳编剧、演员、导演、幕后技术的协同平台，促进不同专业学生交流融合，集中展现学校素质教育成果，向社会展示华立科技职业学院学生技术能力与人文素养并重的形象。\n\n你是总策划，只写大纲与人物卡，不写剧本正文。产出必须能被编剧直接照着写：每一场有事件、冲突、情绪转折。\n\n任务：\n1) 提炼「没有小角色」的可舞台化表达（不要口号，要结构）；\n2) 定核心立意一句话、故事一句话、人物 5-7 人（每个角色写明：身份/欲望/秘密/弧光/在主题上的功能，群演也要有独立弧光）；\n3) 写完整分场大纲（8-12 场，每场写清事件、冲突、转折、时长估算）；\n4) 说明适配性：舞台版与竖屏短剧版各自的呈现差异、时长（舞台 12-15 分钟 / 竖屏 8-10 集或 3-5 分钟单条）、场景与人数成本；\n5) 自检是否贴合华立职院校园背景（专业设置、社团、宿舍、实训等真实感细节）。\n\n产出：mkdir -p /root/free-pool/大赛，写 /root/free-pool/大赛/01-大纲与人物卡.md。工作区内已有两份先前草稿（剧本-桌洞里的第七格.md、剧本-甲乙丙丁-话剧.md），可参考结构与手法，但本次必须是新的原创故事，不得复用其情节。完成后在 output 里给出 200 字以内交接摘要给编剧。",
+      "status": "completed",
+      "assignee": "planner",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1794984965334,
+      "updatedAt": 1794985188149,
+      "attemptId": "1227c505-ddad-47ba-925b-eb41ba93671c",
+      "reassigning": false,
+      "output": "产出：/root/free-pool/大赛/01-大纲与人物卡.md（373 行，含立意、人物卡、10 场分场、舞台/竖屏适配、华立背景自检）。\n\n剧名《三十秒——技能节复盘会的六种说法》。\n\n【主题如何变成结构（4 个装置，不靠台词点题）】\n1) 讲述椅：谁复盘谁坐上去，光只给他，其他人退成背景——\"角色大小=有没人替你复述\"。\n2) 讲漏的动作：讲述者讲漏的地方演员照样做完，观众看得见、台上人看不见，全剧视觉语法。\n3) 名单白板：开场只有 4 个名字，每场补一行；两个\"不算成员\"的人（借调引导员、设备管理员）最后才被写上。\n4) 三十秒 cue：跳闸+全黑+秒表数 30，全剧重放 7 次，第 7 次才被填满。\n\n【故事一句】技能节展台断电三十秒后六人轮流复盘，越讲越发现每个版本都少一个人，而那人做完了所有事。\n\n【人物 6 核心+2 群演】林知夏（电商直播·主播，晕镜头，从抢镜到让镜）/ 周砚（工业机器人·调试，藏端子发热，从藏错到报错）/ 陈默（数媒·摄影，握有唯一素材却因\"素材里没有我\"不交）/ 苏念（学前教育·借调引导员，画了三遍流程表，复述里把自己删掉）/ 雷国强（实训楼设备管理员，闸是他拉的，怕担责）/ 郑敏（指导老师，一遍遍问\"还有谁\"）/ 群演甲乙（凑人数搬展板，第五场才第一次被点名）。\n\n【场次】10 场，14.8 分钟；核心是第 7 场（苏念的版本，她的位置在重演里是空的）与第 8 场（30 秒影像填满六个时间点）。精简版 12 分钟，第 7、8 场不可删。\n\n【适配】舞台一景到底（6 椅+2 展板+1 白板，最少 6 人，群演由灯光兼任）；竖屏 10 集×90-150 秒，每集一个版本+一个钩子，第 7 集用\"切空椅子 1.5 秒\"做空白；单条 3-5 分钟只拍 1/7/8/9 集。\n\n【背景自检】已核实：广州校区在增城；二级学院含电力与智能制造、计算机信息工程、艺术与传媒、经济管理、教育、健康等；实训平台含电气自动化、智能制造、电商直播。剧本落点：电商直播展台、六轴机械臂柔性产线、学前教育被借去当引导员、数媒全程拍摄、实训楼配电箱与设备管理员、班群\"来两个人搬展板\"、老师手上的三份表。附 5 条失真风险提示（勿写名校感、术语要准、勿用真名、方言配字幕、勿特写校徽楼号）。\n\n【交接摘要（≤200 字，给编剧）】\n《三十秒》：技能节展台断电三十秒，六人轮流复盘。每场一人坐\"讲述椅\"获得重演权——他讲漏的动作，演员照做，观众看得见、台上人看不见。主播林知夏把自己讲成英雄；技术周砚藏了前一晚摸到端子发烫；摄影陈默拍到全程却因\"素材里没有我\"不交；借调引导员苏念把每个人讲了一遍、独独删掉自己（第 7 场她的位置在重演里是空的）；设备管理员老雷承认闸是他拉的。第 8 场影像填满 30 秒六个时间点，第 9 场名单一行行补名字。铁律：全剧不许出现\"没有小角色\"五个字；苏念不许升格成主角；老雷不许变成扫地僧；每场必标一个【讲漏】动作。竖屏按集拆，第 7 集切空椅子 1.5 秒。",
+      "changedPaths": [
+        "大赛/01-大纲与人物卡.md"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "提炼「没有小角色」的可舞台化表达（结构而非口号）",
+          "status": "passed",
+          "evidence": "第一节四个装置：讲述椅（重演权）、讲漏的动作（观众多看见一层）、名单白板（名字=被算进去）、三十秒 cue（重放 7 次第 7 次填满）；并给出排导演的一句话与「全剧不许出现该五字」的硬约束。"
+        },
+        {
+          "criterion": "核心立意一句话 + 故事一句话",
+          "status": "passed",
+          "evidence": "立意：角色的大小不取决于你站在哪儿，取决于有没有人替你复述。故事：断电三十秒后六人复盘，每个版本都少一个人，最后用一段没人交出的素材补全三十秒并补上两个名字。"
+        },
+        {
+          "criterion": "人物 5-7 人，每个含身份/欲望/秘密/弧光/主题功能；群演有独立弧光",
+          "status": "passed",
+          "evidence": "核心 6 人（林知夏、周砚、陈默、苏念、雷国强、郑敏）+ 群演甲乙，逐条列身份/欲望/秘密/弧光/主题功能；群演弧光写明「六次复述无人问，第五场第一次被点名，之后扶展板动作第一次有声音」。"
+        },
+        {
+          "criterion": "8-12 场分场大纲，每场写清事件/冲突/转折/时长",
+          "status": "passed",
+          "evidence": "10 场，统一格式含事件、冲突、转折、必须被看见（讲漏动作）、声光 cue、时长；附时长合计表 14.8 分钟与 12 分钟精简方案。"
+        },
+        {
+          "criterion": "舞台版与竖屏版呈现差异、时长、场景与人数成本",
+          "status": "passed",
+          "evidence": "第五节 A/B 两表：舞台一景到底、四档光、零换景、最少 6 人（群演由灯光兼任）、道具清单；竖屏 10 集分集表含每集钩子、四条拍法差异（画框语法/物证特写/台词密度/第 7 集切空椅子）、单条 3-5 分钟取 1/7/8/9 集、场景与器材成本。"
+        },
+        {
+          "criterion": "自检是否贴合华立职院校园背景",
+          "status": "passed",
+          "evidence": "第六节：核实项（增城广州校区、二级学院名单、电气自动化/智能制造/电商直播实训平台，附来源链接）+ 10 条落地细节对照表 + 5 条失真风险提示 + 对照公告四条定位的主题自检表。"
+        },
+        {
+          "criterion": "产出新原创故事，不复用两份草稿情节",
+          "status": "passed",
+          "evidence": "两稿分别为「课桌纸条隔空通信」与「缺主角的戏中戏+舞台监督」，本稿为「断电三十秒多视角复盘会+名单装置」，无共享情节、人物或核心道具（纸条/课桌/节目单/提词均未使用）。"
+        }
+      ]
+    },
+    {
+      "id": "t2",
+      "profileSeedId": "t2",
+      "subject": "按大纲写出完整剧本初稿",
+      "description": "你是编剧。读 /root/free-pool/大赛/01-大纲与人物卡.md，严格按大纲写作，不改立意与人物关系；大纲有明显漏洞可就地补，但要在文末「编剧备注」列出改动。\n\n要求：\n- 主题靠结构与人物选择体现，不靠台词喊口号；\n- 每个配角都有高光时刻与独立动机，主角不是唯一视角；\n- 台词口语化、可念、有潜台词，避免书面长句；\n- 舞台可落地：换景少、道具可借、人数可控，舞台指示只写可执行的动作与调度；\n- 篇幅：舞台版 12-15 分钟（约 4000-6000 字），另附「竖屏短剧改编要点」（分集切点、竖屏构图建议）。\n\n产出：/root/free-pool/大赛/02-剧本初稿.md。完成后给出 200 字以内交接摘要给审核。",
+      "status": "completed",
+      "dependencies": [
+        "t1"
+      ],
+      "attempt": 4,
+      "createdAt": 1794984965334,
+      "updatedAt": 1794985499712,
+      "reassigning": false,
+      "assignee": "writer-ds",
+      "attemptId": "83656843-39ac-4237-9e8d-211a97a3820f",
+      "output": "产出：/root/free-pool/大赛/02-剧本初稿.md（824 行，约 5500 字舞台正文 + 竖屏改编要点 + 编剧备注）。\n\n【交接摘要（≤200 字）】\n《三十秒》初稿已完成：10 场、14.8 分钟。讲述椅／【讲漏】／名单白板／30 秒 cue①—⑦ 全按大纲（第七场数到 24 断，第八场填满后秒表消失）。每场末均标【讲漏】，正文无主题口号。请重点审三处：①第六场补时间线硬伤（第 0 秒空开跳闸、第 6 秒急停、第 11 秒老雷拉闸隔离），台词与人物关系未动；②白板开场改为\"四行岗位、姓名栏空\"；③地面刻度胶带定为苏念所贴。另附竖屏 10 集切点＋构图 7 条＋编剧备注 10 条。\n\n【完成情况】\n1. 严格照大纲 10 场顺序与时长（1.5/1.5/1.5/1.5/1.0/1.5/2.0/2.5/1.0/0.8=14.8 分钟），未改变立意与人物关系。\n2. 四条装置全部落地：讲述椅顶光重演权、每场一处【讲漏】（共 10 处，已逐场标注）、名单白板逐场补名、30 秒 cue ⑦次计数（①场一完整→②场二压到15→场三残片不计数→③场四红点→④场五木声→⑤场六\"咔\"→⑥场七到24断→⑦场八填满，此后秒表消失）。\n3. 配角各有高光与独立动机：周砚当众认错并换线、陈默交出唯一素材、苏念把五个人讲对却删掉自己（未升格）、老雷\"这层楼归我管\"拒不接受开脱（未洗白）、郑敏一句\"志愿者若干\"即翻页、甲乙\"我们扶住了展板\"为全剧唯一一次大声。\n4. 可落地：一景到底、零换景、最少 6 人（群演由灯光/音效兼任）、道具全部可借，机械臂降本为\"传送带+可转支架\"模型。\n5. 台词按六人语感分别设计（林快而爱说\"我们\"、周只报秒数、陈永远第三人称、苏短句带\"就是……\"、老雷≤10 字、郑疑问句最多）；老雷粤语仅 1 处并配普通话重复。\n6. 附「竖屏短剧改编要点」：10 集切点表（含每集 3 秒钩子与时长）、单条 3–5 分钟版只拍 1/7/8/9 集、第 7 集空椅 1.5 秒剪法、竖屏构图 7 条（画框即角色、每集一个物证特写、前 3 秒出信息、机位不动等）。\n7. 文末「编剧备注」列 10 条对大纲的改动，含 1 条硬伤修补（原大纲\"老雷第 11 秒拉闸\"与\"苏念第 6 秒在黑场按急停并数到 30\"逻辑冲突，已改为第 0 秒空开过流跳闸、第 6 秒急停、第 11 秒拉总闸隔离），人物关系与既定台词未改。\n8. 自检：全文未出现\"没有小角色\"及任何同义点题台词；无 ASCII 引号/繁体字残留；10 场标题、10 处【讲漏】、cue ①—⑦ 编号均已用检索核对。"
+    },
+    {
+      "id": "t3",
+      "profileSeedId": "t3",
+      "subject": "审核润色并输出修改稿与审核报告",
+      "description": "你是审核与润色。通读 /root/free-pool/大赛/02-剧本初稿.md，产出修改稿：\n1) 逻辑：动机是否成立、转折是否有铺垫、有无硬伤；\n2) 台词：删书面腔、改生硬句、压缩冗余，保留作者语感；\n3) 主题：核对「没有小角色」是否被结构承载，若靠台词直说则改写为行动；\n4) 落地：逐场标注可执行性（道具/灯光/人数/换景/时长），指出不可拍或超预算处并给替代方案；\n5) 字数与时长校准（舞台 12-15 分钟）。\n\n产出：/root/free-pool/大赛/03-审核修改稿.md（正文全文 + 文末「审核报告」：问题清单、修改说明、落地风险与建议）。完成后给出 200 字以内交接摘要给终稿整理。",
+      "status": "completed",
+      "assignee": "editor",
+      "dependencies": [
+        "t2"
+      ],
+      "attempt": 1,
+      "createdAt": 1794984965334,
+      "updatedAt": 1794985903145,
+      "attemptId": "78bc93d3-5b51-4020-bcee-80f851d2c599",
+      "reassigning": false,
+      "output": "产出：/root/free-pool/大赛/03-审核修改稿.md（1008 行）。含修订后 10 场正文全文（每场附【落地·本场】卡）、修订版演出规则 6 条、时长校准表、竖屏 10 集要点（同步修订）、审核报告 A—F（23 条问题清单、20 条改句对照、9 类落地风险、5 条判定不改、3 条终稿待办）、200 字交接摘要。\n\n【本次修掉的 4 处硬伤】\n1) 场一 ↔ 场二时间线：林知夏自称“补妆十七秒”，却在苏念数到“六、七”之前就喊“我在”。重排场一黑场声音顺序（数到六、七 → 拉链声“我补一下” → 灯一盏盏亮 → 她第 21 秒冲回喊“我在” → 苏念数到二十一、二十二），十七秒有了落点。\n2) 场八“第零秒，闸就跳了”原由陈默说出——他的机位对着展台，无从得知配电箱内情。改由周砚说出，并补“跳的是我那条线”，同一句从指控变成自我归罪，陈默不再充当全知解说。\n3) 场九：苏念刚把名字写上白板，结尾却“最后一行还是空的”。改为郑敏在她写完后于最下面再画一条无岗位空行，再问“还有谁”，矛盾消解且收尾更狠。\n4) 场二“一直按到灯亮，中间没有松过”与场七“按一下，松一下”打架（急停是自锁式）。统一为“按下即锁、手不松、用指节打拍子数”，cue⑥断在 24 = 她数不完自己的 24 下。\n\n【其他关键修订】统一周砚“右手缩在袖子里”（原左右手混用、撸袖无落点）；场八第 28 秒苏念腿麻补物理起因（蹲满 24 下、站起到一半腿软）；场七末补陈默交素材的无声铺垫（松开按胸口的手、手机翻正、屏幕里是空的展台侧面）；场一补郑敏黑暗里两声“往后退”，为陈默复述提供依据；场八改为“八个点六个人各站一个，苏念没有点”（她贴的点里没有自己的）取代原“八人八点”；场八讲漏的胶带动作移到最后与争执对位；场十“机械臂自己转”明确为周砚转的转臂；统一“转臂/手机架”命名并补入道具单。\n\n【落地】原稿“最少 6 人（群演由灯光/音效兼任）”判定不可行（场五需两具身体顶展板、场九要点名应答），改为标准 8 人并给 6 人应急方案；全黑 3 秒改为“黑到看不见人脸 + 台口 3W 地灯 + 荧光走位点”；场八影子戏给三档方案（近距手影 0 元 / 借 200—300W 灯 / 改前投）；强电红线（展台 24V 模型电源、急停只切模型、配电箱为空箱道具）；白板铅笔打底等书写可操作化。\n\n【时长】净时长复算 13.8（硬时间 4.2 + 台词约 2,100 字 9.5），加缓冲 ≈14.2 分钟，留 0.8 分钟余量；若所有 cue 走满 30 秒则 15.4 超时，故只有 ①⑦ 满 30 秒；另给 12 分钟精简版路线（第七、八场一秒不删）。\n\n【说明】本机沙箱后端不可用、bash 无法执行，字数改为按段落估算（文中已标注方法），终稿请以 Word 字数统计与彩排秒表实测为准。",
+      "changedPaths": [
+        "大赛/03-审核修改稿.md"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "1) 逻辑：动机是否成立、转折是否有铺垫、有无硬伤",
+          "status": "passed",
+          "evidence": "审核报告 A 表 15 条逻辑类问题（P1—P11、P23），4 处硬伤（场一时间线、场八非全知解说、场九名单自相矛盾、急停按法互斥）已全部改掉；补铺垫 3 处（周砚“声音没了”的听觉依据、陈默交素材的无声动作、场八腿麻起因）"
+        },
+        {
+          "criterion": "2) 台词：删书面腔、改生硬句、压缩冗余、保留作者语感",
+          "status": "passed",
+          "evidence": "B 表 20 条原句→改句对照；删“像按住一个伤口”→“一个证据”、“全场第一次安静”、“这是全剧他第一次撒谎”、“这上面”等旁白式/书面句式；压缩场四、五、九、十四处冗余；六人语感（林快而爱说“我们”、周只报数字、陈默第三人称、苏短句、老雷≤10 字、郑疑问句最多）全部保留"
+        },
+        {
+          "criterion": "3) 主题：核对“没有小角色”是否由结构承载，靠台词直说则改为行动",
+          "status": "passed",
+          "evidence": "全文 0 次出现该口号及同义词（grep 核验）；四装置全部有效运转；新增主题表达全部落在动作上（场八“八个点是她贴的，没给自己留一个”、场九“再画一条空行到落幕都没填”），均不进台词；判定保留不改的 5 处逐条写了理由"
+        },
+        {
+          "criterion": "4) 落地：逐场标注可执行性并给不可拍/超预算处的替代方案",
+          "status": "passed",
+          "evidence": "10 场各附【落地·本场】（道具/灯光/人数/换景/时长/风险，grep 计数 10/10）；C 节 9 类落地风险与替代方案：8 人不可省与 6 人应急、黑场安全、影子戏三档成本方案、强电红线、白板书写、场地最小尺寸、限时三档、竖屏拍摄、字幕"
+        },
+        {
+          "criterion": "5) 字数与时长校准（舞台 12—15 分钟）",
+          "status": "passed",
+          "evidence": "时长校准表逐场拆分硬时间与台词字数，净时长 13.8 + 缓冲 ≈14.2 分钟，落在 12—15 带内并留 0.8 分钟余量；给出“全 cue 满 30 秒即 15.4 超时”的反证，据此定下 cue 分档规则；另给 12 分钟精简版路线。方法已注明为估算"
+        },
+        {
+          "criterion": "产出文件 /root/free-pool/大赛/03-审核修改稿.md（正文全文 + 文末审核报告：问题清单、修改说明、落地风险与建议）",
+          "status": "passed",
+          "evidence": "1008 行；结构为 封面/演出规则 6 条/人物/道具/10 场正文（每场含【讲漏】与【落地·本场】）/时长校准/竖屏改编要点/审核报告 A—F（问题清单 23 条、修改说明 20 条、落地风险 C-1—C-9、判定不改 5 条、终稿待办 3 条）/200 字交接摘要"
+        },
+        {
+          "criterion": "完成交接摘要（≤200 字）给终稿整理",
+          "status": "passed",
+          "evidence": "文末「交接摘要」段约 198 字，含 4 处硬伤、2 处铺垫补充、报告条目数，可直接转给终稿整理"
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "grep -n '^【讲漏】|^\\*\\*【落地·本场】\\*\\*|^## 第.{1,3}场' 03-审核修改稿.md",
+          "status": "passed",
+          "evidence": "30 处命中＝10 场标题 + 10 条【讲漏】+ 10 条【落地·本场】，逐场一一对应，无缺漏"
+        },
+        {
+          "command": "grep -n '30s·|30s 残片' 03-审核修改稿.md",
+          "status": "passed",
+          "evidence": "8 处命中＝cue①—⑦ 共 7 次重放 + 场三“残片（不计数）”，编号与场次顺序一致"
+        },
+        {
+          "command": "grep -n '没有小角色|小角色|\"|扛|吊打' 03-审核修改稿.md",
+          "status": "passed",
+          "evidence": "No matches：无主题口号及其同义词，无 ASCII 引号残留（全角引号统一）"
+        },
+        {
+          "command": "grep -n '[講說這麼們時對開關機電來過為甚屆戲劇團燈聲線導師點兒]' 03-审核修改稿.md",
+          "status": "passed",
+          "evidence": "No matches：无繁体字残留"
+        },
+        {
+          "command": "逐场复算硬时间与台词字数（手算，non-shell）",
+          "status": "passed",
+          "evidence": "硬时间合计 252s＝4.2 分；台词 ≈2,100 字 ÷220 字/分 ≈9.5 分；净 13.8 + 缓冲 0.4 ≈14.2 分。本机沙箱后端不可用、bash 无法执行，故未做机器字数统计，方法已在文中标注"
+        }
+      ]
+    },
+    {
+      "id": "t4",
+      "profileSeedId": "t4",
+      "subject": "整理参赛终稿与作品简介、创作说明",
+      "description": "你是终稿整理。基于 /root/free-pool/大赛/03-审核修改稿.md 产出可直接提交的全套材料，不新增剧情：\n1) /root/free-pool/大赛/04-参赛终稿.md：规范排版（标题页、人物表、分场、舞台提示分层、统一标点），核对字数与时长估算；\n2) /root/free-pool/大赛/05-作品简介与创作说明.md：作品简介 200 字以内；创作说明明确关联大赛「没有小角色」理念，点明素质教育成果与跨专业协同（编剧/表演/导演/舞美/音效/宣发），并说明舞台版与竖屏版的可演性；\n3) /root/free-pool/大赛/06-提交清单.md：列出提交所需文件、字数、时长、演职人员需求（含可兼任方案）。\n\n完成后给出 300 字以内总交付摘要（作品名、一句话立意、时长、人数、文件清单）。",
+      "status": "in_progress",
+      "assignee": "finalizer",
+      "dependencies": [
+        "t3"
+      ],
+      "attempt": 1,
+      "createdAt": 1794984965334,
+      "updatedAt": 1794985907404,
+      "attemptId": "0639c5f4-968f-4612-87c3-c30e6342c366",
+      "reassigning": false,
+      "output": "开始整理终稿：读取 03-审核修改稿.md 全文，再产出 04/05/06 三份提交材料。"
+    }
+  ],
+  "taskSeq": 4,
+  "approvedAt": 1794985036332
+}
