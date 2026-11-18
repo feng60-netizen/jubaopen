@@ -232,13 +232,14 @@ def adaptive_score(name, snapshot, owner=False):
     return min(200, base + (OWNER_BOOST if owner else 0))
 
 def pick_by_adaptive(candidates, owner=False):
-    """自适应策略: 综合评分排序"""
+    """自适应策略: 综合评分排序; 平分时按优先级稳定(避免探测噪音决定路由)"""
     snap = model_scores_snapshot()
-    scored = [(adaptive_score(m["name"], snap, owner), m) for m in candidates]
-    scored.sort(key=lambda x: -x[0])
+    scored = [(round(adaptive_score(m["name"], snap, owner)), m.get("priority", 99), i, m)
+              for i, m in enumerate(candidates)]
+    scored.sort(key=lambda x: (-x[0], x[1], x[2]))
     if scored:
-        log.info(f"自适应评分" + ("[本人]" if owner else "") + ": " + ", ".join(f"{m['name']}={sc:.0f}" for sc, m in scored))
-    return scored[0][1] if scored else None
+        log.info(f"自适应评分" + ("[本人]" if owner else "") + ": " + ", ".join(f"{m['name']}={sc:.0f}" for sc, _, _, m in scored))
+    return scored[0][3] if scored else None
 
 
     global RR_INDEX
@@ -367,21 +368,26 @@ def jubao_record_use(model_name, amount=1):
     threading.Thread(target=_task, daemon=True).start()
 
 def probe_latencies(models):
-    """并行探测各模型延迟(ms), 高延迟场景快速排序用"""
+    """并行探测各模型延迟(ms), 高延迟场景快速排序用。
+    结果按传入顺序构建, 不受线程完成顺序影响(排序稳定性依赖此序)。"""
     results = {}
+    order = [m["name"] for m in models]
+    raw = {}
     def _probe(m):
         t0 = time.time()
         try:
             urllib.request.urlopen(
                 urllib.request.Request(m["base_url"], method="GET"), timeout=3)
-            results[m["name"]] = (time.time() - t0) * 1000
+            raw[m["name"]] = (time.time() - t0) * 1000
         except urllib.error.HTTPError:
-            results[m["name"]] = (time.time() - t0) * 1000  # 4xx也算连通
+            raw[m["name"]] = (time.time() - t0) * 1000  # 4xx也算连通
         except Exception:
-            results[m["name"]] = 9999  # 不可达
+            raw[m["name"]] = 9999  # 不可达
     threads = [threading.Thread(target=_probe, args=(m,), daemon=True) for m in models]
     for t in threads: t.start()
     for t in threads: t.join(timeout=3.5)
+    for name in order:
+        results[name] = raw.get(name, 9999)
     return results
 
 def pick_model_fast(session_id, body, owner=False):
@@ -400,12 +406,14 @@ def pick_model_fast(session_id, body, owner=False):
     if CONFIG.get("session_sticky") and session_id:
         bound = SESSIONS.get(session_id)
         threshold = CONFIG.get("latency_switch_ms", 1200)
-        for m in fast:
-            if m["name"] == bound and (owner or lat.get(m["name"], 9999) <= threshold):
-                return m
-        if fast:
-            log.info(f"会话 {session_id} 粘性模型慢/挂" + ("[本人]" if owner else "") + f", 切到: {fast[0]['name']}")
-            return fast[0]
+        # 有历史绑定时才走粘性; 无绑定的首次会话直接交给adaptive评分
+        if bound:
+            for m in fast:
+                if m["name"] == bound and (owner or lat.get(m["name"], 9999) <= threshold):
+                    return m
+            if fast:
+                log.info(f"会话 {session_id} 粘性模型慢/挂" + ("[本人]" if owner else "") + f", 切到: {fast[0]['name']}")
+                return fast[0]
     if CONFIG.get("route_mode") in ADAPTIVE_STRATEGIES:
         return pick_by_adaptive(fast, owner)
     if CONFIG.get("route_mode") == "round_robin":
@@ -452,7 +460,7 @@ def try_generate(body, stream=False, session_id=None, owner=False):
         tried.add(m["name"])
         try:
             t0 = time.time()
-            log.info(f"[{attempt+1}/{max_retries}] 路由[{strategy or CONFIG.get('route_mode')}{' [本人]' if owner else ''}] → {m['name']} ({m['provider']}) stream={stream}")
+            log.info(f"[{attempt+1}/{max_retries}] 路由[{strategy or CONFIG.get('route_mode')}{' [本人]' if owner else ''}] → {m['name']} ({m.get('provider','?')}) stream={stream}")
             resp = call_upstream_fast(m, body, stream)
             latency = int((time.time() - t0) * 1000)
             clear_cooldown(m["name"])
