@@ -18,7 +18,6 @@ android.allow_backup = True
 android.extra_manifest_xml = manifest_extra.xml
 log_level = 2
 
-[app]
 p4a.branch = v2026.05.09
 
 [buildozer]

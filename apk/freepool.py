@@ -13,6 +13,7 @@ import uuid
 import threading
 import urllib.request
 import urllib.error
+import socket
 import http.server
 import socketserver
 import os
@@ -422,12 +423,18 @@ def pick_model_fast(session_id, body, owner=False):
 
 def call_upstream_fast(model_cfg, body, stream=False, connect_timeout=5):
     """上游调用: 高延迟时由 pick_model_fast 的延迟排序保证快速选择;
-    连接阶段的快速失败由延迟探测+冷却机制承担。"""
+    连接阶段先做TCP握手探测(quick fail), 避免上游半死(listen未accept)时挂满总超时。"""
     url = model_cfg["base_url"]
     payload = dict(body)
     payload["model"] = model_cfg["model"]
     payload["stream"] = stream
     data = json.dumps(payload).encode("utf-8")
+    # 连接阶段快速失败: 对listen但假死的上游, connect探测超时即抛错进降级
+    from urllib.parse import urlparse
+    _p = urlparse(url)
+    _port = _p.port or (443 if _p.scheme == "https" else 80)
+    _sock = socket.create_connection((_p.hostname, _port), timeout=connect_timeout)
+    _sock.close()
     req = urllib.request.Request(
         url, data=data,
         headers={
@@ -436,7 +443,9 @@ def call_upstream_fast(model_cfg, body, stream=False, connect_timeout=5):
         },
         method="POST"
     )
-    resp = urllib.request.urlopen(req, timeout=CONFIG.get("timeout_seconds", 60))
+    # 首包超时: 防上游假死(listen但不响应)时长时间挂起; 流式响应由调用方处理持续读
+    fb = CONFIG.get("first_byte_timeout", 8)
+    resp = urllib.request.urlopen(req, timeout=min(fb, CONFIG.get("timeout_seconds", 60)))
     return resp
 
 def try_generate(body, stream=False, session_id=None, owner=False):
@@ -679,6 +688,10 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
                 body = json.loads(self.rfile.read(length).decode("utf-8"))
             except Exception as e:
                 return self._send_json(400, {"error": {"message": f"bad request: {e}"}})
+            if not isinstance(body.get("messages"), list) or not body.get("messages"):
+                return self._send_json(400, {"error": {"message": "messages must be a non-empty list"}})
+            if len(json.dumps(body)) > 131072:
+                return self._send_json(413, {"error": {"message": "request too large (>128KB)"}})
 
             want_stream = bool(body.get("stream"))
             sid = extract_session_id(body, self.headers)
