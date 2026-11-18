@@ -157,7 +157,76 @@ def get_ordered_models():
         return ms
     return sorted(ms, key=lambda m: m.get("priority", 99))
 
-def pick_by_round_robin(candidates):
+# ---------------- 自适应调度器（五维评分融合） ----------------
+# score = 0.35*速度分 + 0.25*成功分 + 0.15*质量分 + 0.15*积分分 + 0.10*额度分
+# 速度分: 实测延迟映射(0-1000ms → 100-0)
+# 成功分: 近期成功/失败滑动窗口
+# 质量分: /v1/compare 中各模型表现(答得快+答得全加分)
+# 积分分: 聚宝盆积分余额归一化
+# 额度分: 今日剩余额度归一化
+SCORE_LOCK = threading.Lock()
+MODEL_SCORES = {}   # name -> {"lat": 最近延迟, "ok": 成功次数, "fail": 失败次数, "quality": 0-100}
+
+def score_update(name, key, value):
+    with SCORE_LOCK:
+        s = MODEL_SCORES.setdefault(name, {"lat": None, "ok": 0, "fail": 0, "quality": 50})
+        if key == "lat":
+            s["lat"] = value
+        elif key == "ok":
+            s["ok"] += 1
+        elif key == "fail":
+            s["fail"] += 1
+        elif key == "quality":
+            s["quality"] = value
+
+def model_scores_snapshot():
+    with SCORE_LOCK:
+        return dict(MODEL_SCORES)
+
+def jubao_weights():
+    """从聚宝盆拉积分+剩余额度, 归一化成 0-1 权重; 离线时全 0.5"""
+    try:
+        q = json.loads(urllib.request.urlopen(f"{JUBAO_URL}/quota", timeout=2).read().decode())
+        remain = {a["name"]: a.get("remainToday") or 0 for a in q.get("accounts", [])}
+        mx = max(remain.values()) or 1
+        remain_w = {k: v / mx for k, v in remain.items()}
+    except Exception:
+        remain_w = {}
+    try:
+        p = json.loads(urllib.request.urlopen(f"{JUBAO_URL}/points", timeout=2).read().decode())
+        pts = {a["name"]: a.get("points", 0) for a in p.get("accounts", [])}
+        mx = max(pts.values()) or 1
+        pts_w = {k: v / mx for k, v in pts.items()}
+    except Exception:
+        pts_w = {}
+    return remain_w, pts_w
+
+def adaptive_score(name, snapshot):
+    """0-100 综合评分"""
+    s = snapshot.get(name, {"lat": None, "ok": 0, "fail": 0, "quality": 50})
+    # 速度分
+    lat = s.get("lat")
+    speed = max(0, 100 - (lat or 500) / 10) if lat else 50
+    # 成功分
+    ok, fail = s.get("ok", 0), s.get("fail", 0)
+    total = ok + fail
+    success = (ok / total * 100) if total else 60
+    quality = s.get("quality", 50)
+    remain_w, pts_w = jubao_weights()
+    credit = pts_w.get(name, 0.5) * 100
+    quota = remain_w.get(name, 0.5) * 100
+    return (0.35 * speed + 0.25 * success + 0.15 * quality + 0.15 * credit + 0.10 * quota)
+
+def pick_by_adaptive(candidates):
+    """自适应策略: 综合评分排序"""
+    snap = model_scores_snapshot()
+    scored = [(adaptive_score(m["name"], snap), m) for m in candidates]
+    scored.sort(key=lambda x: -x[0])
+    if scored:
+        log.info(f"自适应评分: " + ", ".join(f"{m['name']}={sc:.0f}" for sc, m in scored))
+    return scored[0][1] if scored else None
+
+
     global RR_INDEX
     if not candidates:
         return None
@@ -167,9 +236,12 @@ def pick_by_round_robin(candidates):
     return m
 
 # ---------------- Magpie 式路由策略 ----------------
+ADAPTIVE_STRATEGIES = {"adaptive", "智能", "auto"}
 # 智能auto / 按顺序priority / 轮流round_robin / 用量少优先least_used / 免费优先free_first / 速度优先speed_first
 def pick_by_strategy(candidates, strategy=None):
     strategy = strategy or CONFIG.get("route_mode", "priority")
+    if strategy in ADAPTIVE_STRATEGIES:
+        return pick_by_adaptive(candidates)
     if strategy == "round_robin":
         return pick_by_round_robin(candidates)
     if strategy == "least_used":
@@ -318,6 +390,8 @@ def pick_model_fast(session_id, body):
         if fast:
             log.info(f"会话 {session_id} 粘性模型慢/挂, 切到最快: {fast[0]['name']} ({lat.get(fast[0]['name']):.0f}ms)")
             return fast[0]
+    if CONFIG.get("route_mode") in ADAPTIVE_STRATEGIES:
+        return pick_by_adaptive(fast)
     if CONFIG.get("route_mode") == "round_robin":
         return pick_by_round_robin(fast)
     return fast[0] if fast else None
@@ -361,17 +435,22 @@ def try_generate(body, stream=False, session_id=None):
             break
         tried.add(m["name"])
         try:
-            log.info(f"[{attempt+1}/{max_retries}] 路由[{strategy or 'sticky'}] → {m['name']} ({m['provider']}) stream={stream}")
+            t0 = time.time()
+            log.info(f"[{attempt+1}/{max_retries}] 路由[{strategy or CONFIG.get('route_mode')}] → {m['name']} ({m['provider']}) stream={stream}")
             resp = call_upstream_fast(m, body, stream)
+            latency = int((time.time() - t0) * 1000)
             clear_cooldown(m["name"])
             with STATE_LOCK:
                 FAIL_COUNT[m["name"]] = 0
+            score_update(m["name"], "lat", latency)
+            score_update(m["name"], "ok", 1)
             jubao_record_use(m["name"], 1)
             return m["name"], resp
         except urllib.error.HTTPError as e:
             code = e.code
             last_err = f"{m['name']} HTTP {code}"
             log.warning(f"{last_err}")
+            score_update(m["name"], "fail", 1)
             if code in (429, 500, 502, 503, 504) or code == 401 or code == 403:
                 set_cooldown(m["name"])
             with STATE_LOCK:
@@ -379,6 +458,7 @@ def try_generate(body, stream=False, session_id=None):
         except Exception as e:
             last_err = f"{m['name']} {type(e).__name__}: {e}"
             log.warning(last_err)
+            score_update(m["name"], "fail", 1)
             set_cooldown(m["name"])
             with STATE_LOCK:
                 FAIL_COUNT[m["name"]] = FAIL_COUNT.get(m["name"], 0) + 1
@@ -422,6 +502,28 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
                     "status": "cooldown" if cooled else "healthy"
                 })
             return self._send_json(200, {"object": "list", "data": data})
+        if self.path == "/scores":
+            """自适应调度评分表(驾驶舱核心)"""
+            snap = model_scores_snapshot()
+            enabled = [m for m in CONFIG["models"] if m.get("enabled", True)]
+            remain_w, pts_w = jubao_weights()
+            rows = []
+            for m in enabled:
+                sc = adaptive_score(m["name"], snap)
+                s = snap.get(m["name"], {})
+                rows.append({
+                    "name": m["name"], "provider": m.get("provider", ""),
+                    "score": round(sc, 1),
+                    "latencyMs": s.get("lat"),
+                    "success": f"{s.get('ok',0)}/{s.get('ok',0)+s.get('fail',0)}",
+                    "quality": s.get("quality", 50),
+                    "pointsWeight": round(pts_w.get(m["name"], 0.5), 2),
+                    "quotaWeight": round(remain_w.get(m["name"], 0.5), 2),
+                })
+            rows.sort(key=lambda r: -r["score"])
+            return self._send_json(200, {"strategy": CONFIG.get("route_mode"),
+                                          "weights": "速度0.35 成功0.25 质量0.15 积分0.15 额度0.10",
+                                          "models": rows})
         if self.path == "/catalog":
             """TryModels 式: 免费模型目录(本池 + 公共免费源快照)"""
             mine = [{"id": m["name"], "provider": m.get("provider"), "free": bool(m.get("free")),
@@ -599,6 +701,54 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
                 return self._send_json(502, {"error": {"message": f"upstream read error: {e}"}})
 
         # Cherry Studio 式一问多答: 并行发给N个模型对比
+        # 动态切换路由策略(驾驶舱用, 持久化)
+        if self.path in ("/pool/strategy", "/strategy"):
+            if not self._auth_ok():
+                return self._send_json(401, {"error": {"message": "invalid api key"}})
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+            except Exception as e:
+                return self._send_json(400, {"error": {"message": f"bad request: {e}"}})
+            mode = body.get("mode")
+            valid = {"adaptive", "priority", "round_robin", "least_used", "free_first", "speed_first", "智能", "auto"}
+            if mode not in valid:
+                return self._send_json(400, {"error": {"message": f"mode 必须是 {sorted(valid)}"}})
+            with STATE_LOCK:
+                CONFIG["route_mode"] = mode
+                with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(CONFIG, f, ensure_ascii=False, indent=2)
+            log.info(f"路由策略切换 → {mode}")
+            return self._send_json(200, {"ok": True, "strategy": mode, "message": f"策略已切换为 {mode} 并持久化"})
+        # 目录一键入池: 把公共免费目录的模型写进 config.json
+        if self.path in ("/catalog/add", "/pool/add"):
+            if not self._auth_ok():
+                return self._send_json(401, {"error": {"message": "invalid api key"}})
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+            except Exception as e:
+                return self._send_json(400, {"error": {"message": f"bad request: {e}"}})
+            required = ("name", "base_url")
+            if not all(body.get(k) for k in required):
+                return self._send_json(400, {"error": {"message": f"必填: {required}"}})
+            with STATE_LOCK:
+                if any(m["name"] == body["name"] for m in CONFIG["models"]):
+                    return self._send_json(409, {"error": {"message": f"模型 {body['name']} 已在池中"}})
+                CONFIG["models"].append({
+                    "name": body["name"],
+                    "provider": body.get("provider", "custom"),
+                    "base_url": body["base_url"],
+                    "api_key": body.get("api_key", ""),
+                    "model": body.get("model", body["name"]),
+                    "priority": body.get("priority", 99),
+                    "free": body.get("free", False),
+                    "enabled": True,
+                })
+                with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(CONFIG, f, ensure_ascii=False, indent=2)
+            log.info(f"入池: {body['name']} ({body.get('provider')})")
+            return self._send_json(200, {"ok": True, "message": f"{body['name']} 已入池并保存到 config.json"})
         if self.path in ("/v1/compare", "/compare"):
             if not self._auth_ok():
                 return self._send_json(401, {"error": {"message": "invalid api key"}})
@@ -620,9 +770,15 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
                     raw = urllib.request.urlopen(req, timeout=CONFIG.get("timeout_seconds", 60)).read()
                     up = json.loads(raw.decode())
                     text = (up.get("choices") or [{}])[0].get("message", {}).get("content", "")
+                    lat = int((time.time()-t0)*1000)
+                    # 质量分: 内容长度(信息量) + 速度加权 → 0-100, 反哺自适应调度
+                    qlen = min(100, len(text) // 20)
+                    qspeed = max(0, 100 - lat // 100)
+                    q = int(0.6 * qlen + 0.4 * qspeed)
+                    score_update(m["name"], "quality", q)
                     with lock:
-                        results.append({"model": m["name"], "ok": True, "latencyMs": int((time.time()-t0)*1000),
-                                         "content": text, "usage": up.get("usage")})
+                        results.append({"model": m["name"], "ok": True, "latencyMs": lat,
+                                         "qualityScore": q, "content": text, "usage": up.get("usage")})
                 except Exception as e:
                     with lock:
                         results.append({"model": m["name"], "ok": False, "error": str(e)[:120]})

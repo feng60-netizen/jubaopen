@@ -3,7 +3,7 @@
   "listen_port": 6120,
   "api_key": "sk-freepool-fixed-2026",
   "model_name": "free-pool",
-  "route_mode": "priority",
+  "route_mode": "adaptive",
   "timeout_seconds": 60,
   "cooldown_seconds": 30,
   "max_retries": 3,
