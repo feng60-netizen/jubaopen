@@ -25,7 +25,13 @@ jobs:
         run: |
           pip install buildozer cython==0.29.36
           sudo apt-get update
-          sudo apt-get install -y zip unzip patch autoconf automake libtool pkg-config ccache
+          sudo apt-get install -y zip unzip patch autoconf automake libtool libtool-bin pkg-config ccache gettext
+
+      - name: 修libffi宏路径
+        run: |
+          export ACLOCAL_PATH="/usr/share/aclocal"
+          echo "ACLOCAL_PATH=/usr/share/aclocal" >> $GITHUB_ENV
+          aclocal --print-ac-dir
 
       - name: 打包
         working-directory: apk

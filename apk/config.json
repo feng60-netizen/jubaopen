@@ -1,0 +1,43 @@
+{
+  "listen_host": "127.0.0.1",
+  "listen_port": 6120,
+  "api_key": "sk-freepool-fixed-2026",
+  "model_name": "free-pool",
+  "route_mode": "adaptive",
+  "timeout_seconds": 60,
+  "cooldown_seconds": 30,
+  "max_retries": 3,
+  "session_sticky": true,
+  "owner_key": "sk-owner-me-2026",
+  "latency_switch_ms": 1200,
+  "jubaopen_url": "http://127.0.0.1:6210",
+  "models": [
+    {
+      "name": "glm-4-flash",
+      "provider": "zhipu",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      "api_key": "YOUR_ZHIPU_KEY",
+      "model": "glm-4-flash",
+      "priority": 1,
+      "enabled": true
+    },
+    {
+      "name": "qwen2.5-7b",
+      "provider": "dashscope",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "api_key": "YOUR_DASHSCOPE_KEY",
+      "model": "qwen2.5-7b-instruct",
+      "priority": 2,
+      "enabled": true
+    },
+    {
+      "name": "workbuddy-1",
+      "provider": "tencent",
+      "base_url": "https://api.workbuddy.tencent.com/v1/chat/completions",
+      "api_key": "YOUR_WORKBUDDY_KEY_1",
+      "model": "workbuddy-chat",
+      "priority": 3,
+      "enabled": false
+    }
+  ]
+}
