@@ -498,7 +498,9 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
     def _auth_ok(self):
         key = CONFIG.get("api_key", "")
         auth = self.headers.get("Authorization", "")
-        return auth == f"Bearer {key}"
+        if auth == f"Bearer {key}":
+            return True
+        return is_owner(self.headers)  # 本人 key 放行
 
     def do_GET(self):
         if self.path == "/v1/models":
