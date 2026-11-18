@@ -1,0 +1,205 @@
+<!doctype html><html lang=zh><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>聚宝盆 · 驾驶舱</title>
+<style>
+:root{--bg:#0a0a0c;--card:#15151a;--card2:#1c1c22;--line:#26262e;--txt:#ececf0;--sub:#9a9aa5;
+--acc:#7c6cff;--acc2:#4cd964;--bad:#ff5d5d;--warn:#ffb340;--r:14px}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:var(--bg);color:var(--txt);
+max-width:920px;margin:0 auto;padding:20px 16px 60px;line-height:1.5}
+header{display:flex;align-items:center;gap:12px;padding:8px 0 18px}
+.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#7c6cff,#4c8dff);
+display:flex;align-items:center;justify-content:center;font-size:22px}
+h1{font-size:20px;margin:0;font-weight:700}
+.sub{font-size:12px;color:var(--sub)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--acc2);margin-left:auto;box-shadow:0 0 8px var(--acc2)}
+.dot.off{background:var(--bad);box-shadow:0 0 8px var(--bad)}
+.tabs{display:flex;gap:6px;background:var(--card);padding:5px;border-radius:12px;margin-bottom:16px;position:sticky;top:10px;z-index:9}
+.tabs button{flex:1;background:none;border:0;color:var(--sub);padding:9px 0;border-radius:9px;cursor:pointer;font-size:13.5px;font-weight:600;transition:.15s}
+.tabs button.on{background:var(--acc);color:#fff}
+.tab{display:none}.tab.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.card h2{font-size:14px;margin:0 0 12px;color:var(--sub);font-weight:600;letter-spacing:.5px}
+.bignum{font-size:34px;font-weight:800;letter-spacing:-1px}
+.bignum small{font-size:14px;color:var(--sub);font-weight:500}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:680px){.grid{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{color:var(--sub);font-weight:500;text-align:left;padding:6px 8px;font-size:12px}
+td{padding:9px 8px;border-top:1px solid var(--line)}
+tr:hover td{background:rgba(255,255,255,.02)}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600}
+.pill.g{background:rgba(76,217,100,.14);color:var(--acc2)}
+.pill.w{background:rgba(255,179,64,.14);color:var(--warn)}
+.pill.b{background:rgba(255,93,93,.14);color:var(--bad)}
+.pill.i{background:rgba(124,108,255,.14);color:#a99dff}
+.bar{height:5px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:5px}
+.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#7c6cff,#4c8dff);transition:width .4s}
+.bar i.g{background:linear-gradient(90deg,#2fae55,#4cd964)}
+.bar i.w{background:linear-gradient(90deg,#d19a2f,#ffb340)}
+.bar i.b{background:linear-gradient(90deg,#c73e3e,#ff5d5d)}
+button,.btn{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.15s}
+button:hover{filter:brightness(1.15)}
+button.ghost{background:var(--card2);color:var(--txt);border:1px solid var(--line)}
+button.sm{padding:5px 11px;font-size:12px;border-radius:8px}
+input,select{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13.5px;outline:none;width:100%}
+input:focus,select:focus{border-color:var(--acc)}
+select{width:auto;cursor:pointer}
+.cmp{border-left:3px solid var(--acc);background:var(--card2);border-radius:0 10px 10px 0;padding:12px 14px;margin:8px 0}
+.cmp .meta{font-size:12px;color:var(--sub);margin-bottom:6px}
+.cmp .meta b{color:var(--txt)}
+.muted{color:var(--sub);font-size:13px}
+#toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:#26262e;color:var(--txt);
+padding:11px 20px;border-radius:12px;font-size:13.5px;opacity:0;transition:.25s;pointer-events:none;border:1px solid var(--line);z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.skel{color:var(--sub);font-size:13px;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.4}}
+.stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.stat{background:var(--card2);border-radius:12px;padding:12px 14px;text-align:center}
+.stat .l{font-size:11.5px;color:var(--sub)}
+.stat .v{font-size:20px;font-weight:700;margin-top:2px}
+</style>
+
+<header>
+ <div class=logo>🪙</div>
+ <div><h1>聚宝盆</h1><div class=sub>JubaoPen · AI 额度统一调度</div></div>
+ <div class=dot id=dot></div>
+</header>
+
+<div class=tabs>
+ <button class=on data-t=0 onclick="tab(0,this)">总览</button>
+ <button data-t=1 onclick="tab(1,this)">对比</button>
+ <button data-t=2 onclick="tab(2,this)">账号</button>
+ <button data-t=3 onclick="tab(3,this)">模型池</button>
+</div>
+
+<!-- TAB 0 总览 -->
+<div class="tab on" id=t0>
+ <div class=card>
+  <h2>今日额度 · <span id=strategy class=pill.i>—</span></h2>
+  <div class=stat3>
+   <div class=stat><div class=l>剩余</div><div class="v ok" id=vRemain>—</div></div>
+   <div class=stat><div class=l>已用</div><div class=v id=vUsed>—</div></div>
+   <div class=stat><div class=l>总积分</div><div class="v" style="color:#a99dff" id=vPoints>—</div></div>
+  </div>
+  <div class=row>
+   <button onclick=signin()>🪙 一键签到</button>
+   <span class=muted>权重：</span><span class=muted id=weights>—</span>
+  </div>
+ </div>
+ <div class=card>
+  <h2>自适应评分榜</h2>
+  <div id=scores><div class=skel>加载中…</div></div>
+ </div>
+</div>
+
+<!-- TAB 1 对比 -->
+<div class="tab" id=t1>
+ <div class=card>
+  <h2>一问多答 · 横向对比</h2>
+  <div class=row>
+   <input id=cmpq placeholder="同一问题，同时发给所有模型…（Cherry Studio 式）" style="flex:1;min-width:200px">
+   <button onclick=compare()>对比</button>
+  </div>
+  <div class=muted style="margin-top:8px">结果按返回排序；质量分自动反哺自适应路由评分</div>
+ </div>
+ <div id=cmpout></div>
+</div>
+
+<!-- TAB 2 账号 -->
+<div class="tab" id=t2>
+ <div class=card>
+  <h2>账号 · 积分 · 签到</h2>
+  <table id=accounts><tr><td class=skel>加载中…</td></tr></table>
+ </div>
+ <div class=card>
+  <h2>添加账号</h2>
+  <div class=row>
+   <input id=n placeholder="名称" style="flex:1;min-width:110px">
+   <input id=p placeholder="平台" style="flex:1;min-width:90px">
+   <input id=k placeholder="API Key" style="flex:1.4;min-width:140px">
+   <input id=q placeholder="每日额度" type=number style="flex:.8;min-width:80px">
+   <button onclick=add()>加入</button>
+  </div>
+ </div>
+</div>
+
+<!-- TAB 3 模型池 -->
+<div class="tab" id=t3>
+ <div class=card>
+  <h2>免费模型目录 · 点「入池」自动写入配置</h2>
+  <table id=catalog><tr><td class=skel>加载中…</td></tr></table>
+ </div>
+ <div class=card>
+  <h2>路由策略 · 切换立即生效并持久化</h2>
+  <div class=row>
+   <select id=strategySel onchange=setStrategy(this.value)>
+    <option value=adaptive>🧠 adaptive · 自适应（推荐）</option>
+    <option value=priority>📋 priority · 按优先级</option>
+    <option value=round_robin>🔄 round_robin · 轮流</option>
+    <option value=least_used>📉 least_used · 用量少优先</option>
+    <option value=free_first>🆓 free_first · 免费优先</option>
+    <option value=speed_first>⚡ speed_first · 速度优先</option>
+   </select>
+  </div>
+ </div>
+</div>
+
+<div id=toast></div>
+<script>
+const J='http://127.0.0.1:6210',P='http://127.0.0.1:6120',K='sk-freepool-fixed-2026';
+function tab(i,btn){document.querySelectorAll('.tab').forEach((t,x)=>t.classList.toggle('on',x===i));
+ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b===btn))}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+const esc=s=>String(s??'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+async function load(){
+ try{const s=await(await fetch(P+'/scores',{headers:{'Authorization':'Bearer '+K}})).json();
+  document.getElementById('strategy').textContent=s.strategy;
+  document.getElementById('strategySel').value=s.strategy;
+  document.getElementById('weights').textContent=s.weights;
+  document.getElementById('scores').innerHTML='<table><tr><th>#</th><th>模型</th><th style=width:45%>评分</th><th>延迟</th><th>成功</th><th>质量</th></tr>'+
+   s.models.map((m,i)=>{const c=m.score>=60?'g':m.score>=40?'w':'b';
+    return `<tr><td class=muted>${i+1}</td><td><b>${esc(m.name)}</b><div class=muted style=font-size:11.5px>${esc(m.provider)}</div></td>
+    <td><b>${m.score}</b><div class=bar><i class=${c} style=width:${Math.min(100,m.score)}%></i></div></td>
+    <td>${m.latencyMs??'—'}</td><td>${esc(m.success)}</td><td>${m.quality}</td></tr>`}).join('');
+ }catch(e){document.getElementById('scores').innerHTML='<span class=bad>FreePool 离线 · 先启动 freepool.py</span>'}
+ try{const q=await(await fetch(J+'/quota')).json();
+  vRemain.textContent=q.totalRemain; vUsed.textContent=q.totalUsed;
+ }catch(e){vRemain.textContent='—'; vUsed.textContent='—'}
+ try{const p=await(await fetch(J+'/points')).json();
+  vPoints.textContent=p.totalPoints;
+  document.getElementById('accounts').innerHTML='<tr><th>账号</th><th>积分</th><th>连签</th><th>今日</th><th>剩余额度</th></tr>'+
+   (await(await fetch(J+'/quota')).json()).accounts.map(a=>{
+    const signed=p.accounts.find(x=>x.name===a.name);
+    return `<tr><td><b>${esc(a.name)}</b><div class=muted style=font-size:11.5px>${esc(a.platform)}</div></td>
+    <td class=ok>${signed?.points??0}</td><td>${signed?.streak??0} 天</td>
+    <td>${signed?.signedToday?'<span class="pill g">已签</span>':'<span class="pill w">未签</span>'}</td>
+    <td>${a.remainToday??'∞'}<div class=bar><i class=${a.remainToday>=(a.dailyQuota||1)/2?'g':a.remainToday>0?'w':'b'} style=width:${a.dailyQuota?Math.min(100,a.remainToday/a.dailyQuota*100):100}%></i></div></td></tr>`}).join('')+
+   `<tr><td colspan=5 class="pill i">总积分 ${p.totalPoints}</td></tr>`;
+ }catch(e){document.getElementById('accounts').innerHTML='<tr><td class=bad>聚宝盆离线 · 先启动 jubaopen.py serve</td></tr>'}
+ try{const c=await(await fetch(P+'/catalog',{headers:{'Authorization':'Bearer '+K}})).json();
+  document.getElementById('catalog').innerHTML='<tr><th>模型</th><th>平台</th><th>说明</th><th>注册</th><th></th></tr>'+
+   c.public.map(m=>`<tr><td><b>${esc(m.id)}</b></td><td>${esc(m.provider)}</td><td class=muted>${esc(m.note)}</td><td class=muted>${esc(m.signup)}</td>
+   <td><button class="ghost sm" onclick=promptAdd('${esc(m.id)}','${esc(m.provider)}')>入池</button></td></tr>`).join('');
+ }catch(e){}
+}
+async function setStrategy(v){await fetch(P+'/pool/strategy',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+K},body:JSON.stringify({mode:v})});toast('✅ 策略已切换为 '+v);load()}
+async function signin(){const r=await(await fetch(J+'/signin',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();toast('🪙 '+r.message);load()}
+async function compare(){const q=cmpq.value.trim();if(!q)return toast('先输入问题');
+ cmpout.innerHTML='<div class=skel>正在并行询问所有模型…</div>';
+ try{const r=await(await fetch(P+'/v1/compare',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+K},body:JSON.stringify({messages:[{role:'user',content:q}]})})).json();
+  const ok=r.compare.filter(x=>x.ok), bad=r.compare.filter(x=>!x.ok);
+  cmpout.innerHTML=(ok.sort((a,b)=>b.qualityScore-a.qualityScore).map(x=>`<div class=cmp><div class=meta><b>${esc(x.model)}</b> · ${x.latencyMs}ms · 质量分 <b>${x.qualityScore}</b></div>${esc(x.content)}</div>`).join('')
+   +bad.map(x=>`<div class=cmp><div class=meta><b>${esc(x.model)}</b> <span class="pill b">失败</span> ${esc(x.error)}</div></div>`).join(''))||'<div class=muted>无结果</div>';
+  load()}catch(e){cmpout.innerHTML='<div class=bad>请求失败：'+esc(e)+'</div>'}}
+async function promptAdd(id,provider){const key=prompt('填入 '+provider+' 的 API Key（留空 = 免 Key 模式）');if(key===null)return;
+ const r=await(await fetch(P+'/catalog/add',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+K},
+  body:JSON.stringify({name:id,provider,base_url:'https://auto/'+id+'/chat/completions',api_key:key,model:id,free:!key})})).json();
+ toast(r.message||r.error);load()}
+async function add(){for(const [el,label] of [[n,'名称'],[k,'API Key']])if(!el.value.trim())return toast(label+' 必填');
+ const r=await(await fetch(J+'/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n.value,platform:p.value,api_key:k.value,daily_quota:+q.value||0})})).json();
+ toast(r.message||r.error);if(r.ok){n.value=p.value=k.value=q.value=''}load()}
+cmpq.addEventListener('keydown',e=>{if(e.key==='Enter')compare()});
+load();setInterval(load,30000)
+</script>
