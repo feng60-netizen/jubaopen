@@ -1,0 +1,6 @@
+accounts.json
+freepool.log
+jubaopen.log
+__pycache__/
+*.pyc
+nohup.out
