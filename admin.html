@@ -1,0 +1,29 @@
+<!doctype html><html lang=zh><meta charset=utf-8><title>聚宝盆管理面板</title>
+<style>body{font-family:system-ui;background:#111;color:#eee;max-width:720px;margin:2em auto;padding:0 1em}
+.card{background:#1c1c1e;border-radius:12px;padding:16px;margin:12px 0}
+h1{font-size:1.3em} .ok{color:#4cd964}.bad{color:#ff453a}.muted{color:#888}
+button{background:#0a84ff;color:#fff;border:0;border-radius:8px;padding:8px 16px;margin:4px;cursor:pointer}
+table{width:100%;border-collapse:collapse}td,th{padding:6px;border-bottom:1px solid #333;text-align:left}</style>
+<h1>🪙 聚宝盆 · 控制台</h1>
+<div class=card><b>今日额度总览</b><div id=summary class=muted>加载中…</div></div>
+<div class=card><b>账号</b><table id=accounts></table>
+<button onclick=signin()>一键签到</button> <button onclick=load()>刷新</button></div>
+<div class=card><b>添加账号</b>
+<input id=n placeholder=名称> <input id=p placeholder=平台> <input id=k placeholder=APIKey> <input id=q placeholder=每日额度 type=number>
+<button onclick=add()>加入</button></div>
+<div class=card><b>FreePool 模型池</b><div id=pool class=muted></div></div>
+<script>
+const J='http://127.0.0.1:6210',P='http://127.0.0.1:6120';
+async function load(){
+ try{const q=await(await fetch(J+'/quota')).json();
+  document.getElementById('summary').innerHTML=`总额度 <b>${q.totalQuota}</b> · 已用 <b>${q.totalUsed}</b> · 剩余 <b class=${q.totalRemain>0?'ok':'bad'}>${q.totalRemain}</b> · ${q.date}`;
+  document.getElementById('accounts').innerHTML='<tr><th>账号</th><th>平台</th><th>今日</th><th>剩余</th><th>签到</th></tr>'+
+   q.accounts.map(a=>`<tr><td>${a.name}</td><td>${a.platform}</td><td>${a.usedToday}/${a.dailyQuota||'∞'}</td><td class=${a.remainToday>0?'ok':'bad'}>${a.remainToday??'∞'}</td><td>${q.signedToday.includes(a.name)?'<span class=ok>已签</span>':'未签'}</td></tr>`).join('');
+ }catch(e){document.getElementById('summary').textContent='聚宝盆离线'}
+ try{const s=await(await fetch(P+'/pool/status')).json();
+  document.getElementById('pool').innerHTML='<table>'+s.models.map(m=>`<tr><td>${m.name}</td><td>${m.provider}</td><td>${m.busyLevel}</td><td>${m.quotaText}</td><td class=${m.status=='healthy'?'ok':'bad'}>${m.status}</td></tr>`).join('')+'</table>';
+ }catch(e){document.getElementById('pool').textContent='FreePool离线'}}
+async function signin(){const r=await(await fetch(J+'/signin',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();alert(r.message);load()}
+async function add(){const n=n.value,p=p.value,k=k.value,q=+q.value;const r=await(await fetch(J+'/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,platform:p,api_key:k,daily_quota:q})})).json();alert(r.message||r.error);load()}
+load();setInterval(load,30000)
+</script>

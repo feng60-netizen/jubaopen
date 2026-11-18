@@ -435,67 +435,127 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path in ("/pool/signin", "/pool/signin/"):
-            n = len([m for m in CONFIG["models"] if m.get("enabled", True)])
-            return self._send_json(200, {"message": f"已对 {n} 个账号执行签到流程（示例）", "signedIn": n})
-        if self.path not in ("/v1/chat/completions", "/chat/completions"):
-            return self._send_json(404, {"error": "not found"})
-        if not self._auth_ok():
-            return self._send_json(401, {"error": {"message": "invalid api key"}})
-        try:
-            length = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(length).decode("utf-8"))
-        except Exception as e:
-            return self._send_json(400, {"error": {"message": f"bad request: {e}"}})
-
-        want_stream = bool(body.get("stream"))
-        sid = extract_session_id(body, self.headers)
-
-        try:
-            model_name, resp = try_generate(body, want_stream, session_id=sid)
-        except Exception as e:
-            log.error(f"最终失败: {e}")
-            return self._send_json(502, {"error": {"message": str(e), "type": "all_upstreams_failed"}})
-
-        bind_session(sid, model_name)
-        log.info(f"会话 {sid} → 绑定 {model_name}")
-
-        if want_stream:
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache")
-            self.end_headers()
+            # 转发到聚宝盆统一签到
             try:
-                for raw in resp:
-                    line = raw.decode("utf-8").strip()
-                    if not line:
-                        continue
-                    if line.startswith("data:"):
-                        out = line
-                    else:
-                        try:
-                            obj = json.loads(line)
-                            out = "data: " + json.dumps(obj, ensure_ascii=False)
-                        except Exception:
-                            continue
-                    self.wfile.write((out + "\n\n").encode("utf-8"))
-                    self.wfile.flush()
-                self.wfile.write(b"data: [DONE]\n\n")
-                self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
-                log.info("客户端断开流式连接")
-            return
+                data = json.dumps({}).encode()
+                req = urllib.request.Request(f"{JUBAO_URL}/signin", data=data,
+                    headers={"Content-Type": "application/json"}, method="POST")
+                j = json.loads(urllib.request.urlopen(req, timeout=5).read().decode())
+                return self._send_json(200, j)
+            except Exception as e:
+                return self._send_json(502, {"message": f"聚宝盆离线: {e}"})
+        if self.path in ("/v1/embeddings", "/embeddings"):
+            if not self._auth_ok():
+                return self._send_json(401, {"error": {"message": "invalid api key"}})
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+            except Exception as e:
+                return self._send_json(400, {"error": {"message": f"bad request: {e}"}})
+            emb_models = [m for m in CONFIG["models"]
+                          if m.get("embeddings_base_url") and m.get("enabled", True)]
+            if not emb_models:
+                return self._send_json(501, {"error": {"message": "未配置 embeddings 模型(在 config.json 加 embeddings_base_url)"}})
+            last_err = None
+            for m in emb_models:
+                try:
+                    payload = {"model": m.get("embeddings_model", "embedding-3"),
+                               "input": body.get("input", "")}
+                    data = json.dumps(payload).encode()
+                    req = urllib.request.Request(m["embeddings_base_url"], data=data,
+                        headers={"Content-Type": "application/json",
+                                 "Authorization": f"Bearer {m['api_key']}"}, method="POST")
+                    raw = urllib.request.urlopen(req, timeout=CONFIG.get("timeout_seconds", 60)).read()
+                    return self._send_json(200, json.loads(raw.decode()))
+                except Exception as e:
+                    last_err = e
+            return self._send_json(502, {"error": {"message": f"embeddings 全部失败: {last_err}"}})
+        if self.path in ("/v1/chat/completions", "/chat/completions"):
+            if not self._auth_ok():
+                return self._send_json(401, {"error": {"message": "invalid api key"}})
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+            except Exception as e:
+                return self._send_json(400, {"error": {"message": f"bad request: {e}"}})
 
-        # 非流式: 读上游, 原样透传
-        try:
-            raw = resp.read()
-            up = json.loads(raw.decode("utf-8"))
-            if "model" in up:
-                up["model"] = model_name
-            up.setdefault("freepool", {})
-            up["freepool"]["routed_to"] = model_name
-            return self._send_json(200, up)
-        except Exception as e:
-            return self._send_json(502, {"error": {"message": f"upstream read error: {e}"}})
+            want_stream = bool(body.get("stream"))
+            sid = extract_session_id(body, self.headers)
+
+            try:
+                model_name, resp = try_generate(body, want_stream, session_id=sid)
+            except Exception as e:
+                log.error(f"最终失败: {e}")
+                return self._send_json(502, {"error": {"message": str(e), "type": "all_upstreams_failed"}})
+
+            bind_session(sid, model_name)
+            log.info(f"会话 {sid} → 绑定 {model_name}")
+
+            if want_stream:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                try:
+                    for raw in resp:
+                        line = raw.decode("utf-8").strip()
+                        if not line:
+                            continue
+                        if line.startswith("data:"):
+                            out = line
+                        else:
+                            try:
+                                obj = json.loads(line)
+                                out = "data: " + json.dumps(obj, ensure_ascii=False)
+                            except Exception:
+                                continue
+                        self.wfile.write((out + "\n\n").encode("utf-8"))
+                        self.wfile.flush()
+                    self.wfile.write(b"data: [DONE]\n\n")
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    log.info("客户端断开流式连接")
+                return
+
+            # 非流式: 读上游, 原样透传
+            try:
+                raw = resp.read()
+                up = json.loads(raw.decode("utf-8"))
+                if "model" in up:
+                    up["model"] = model_name
+                up.setdefault("freepool", {})
+                up["freepool"]["routed_to"] = model_name
+                return self._send_json(200, up)
+            except Exception as e:
+                return self._send_json(502, {"error": {"message": f"upstream read error: {e}"}})
+
+        # embeddings: 取第一个启用 embeddings 的模型
+        if self.path in ("/v1/embeddings", "/embeddings"):
+            if not self._auth_ok():
+                return self._send_json(401, {"error": {"message": "invalid api key"}})
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+            except Exception as e:
+                return self._send_json(400, {"error": {"message": f"bad request: {e}"}})
+            emb_models = [m for m in CONFIG["models"]
+                          if m.get("embeddings_base_url") and m.get("enabled", True)]
+            if not emb_models:
+                return self._send_json(501, {"error": {"message": "未配置 embeddings 模型(在 config.json 加 embeddings_base_url)"}})
+            last_err = None
+            for m in emb_models:
+                try:
+                    payload = {"model": m.get("embeddings_model", "embedding-3"),
+                               "input": body.get("input", "")}
+                    data = json.dumps(payload).encode()
+                    req = urllib.request.Request(m["embeddings_base_url"], data=data,
+                        headers={"Content-Type": "application/json",
+                                 "Authorization": f"Bearer {m['api_key']}"}, method="POST")
+                    raw = urllib.request.urlopen(req, timeout=CONFIG.get("timeout_seconds", 60)).read()
+                    return self._send_json(200, json.loads(raw.decode()))
+                except Exception as e:
+                    last_err = e
+            return self._send_json(502, {"error": {"message": f"embeddings 全部失败: {last_err}"}})
 
 class ThreadedServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
