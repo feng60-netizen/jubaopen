@@ -33,6 +33,10 @@ jobs:
           echo "ACLOCAL_PATH=/usr/share/aclocal" >> $GITHUB_ENV
           aclocal --print-ac-dir
 
+      - name: 预clone p4a并打libffi补丁
+        run: |
+          chmod +x ci/patch_p4a.sh && ./ci/patch_p4a.sh
+
       - name: 打包
         working-directory: apk
         run: |
