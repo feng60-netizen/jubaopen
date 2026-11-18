@@ -522,6 +522,8 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
             return self._send_json(200, {"object": "list", "data": data})
         if self.path == "/scores":
             """自适应调度评分表(驾驶舱核心)"""
+            if not self._auth_ok():
+                return self._send_json(401, {"error": {"message": "invalid api key"}})
             snap = model_scores_snapshot()
             enabled = [m for m in CONFIG["models"] if m.get("enabled", True)]
             remain_w, pts_w = jubao_weights()
@@ -544,6 +546,8 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
                                           "models": rows})
         if self.path == "/catalog":
             """TryModels 式: 免费模型目录(本池 + 公共免费源快照)"""
+            if not self._auth_ok():
+                return self._send_json(401, {"error": {"message": "invalid api key"}})
             mine = [{"id": m["name"], "provider": m.get("provider"), "free": bool(m.get("free")),
                       "status": "healthy" if not is_cooled_down(m["name"]) else "cooldown"}
                      for m in CONFIG["models"] if m.get("enabled", True)]

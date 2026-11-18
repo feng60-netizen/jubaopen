@@ -154,7 +154,7 @@ function toast(m){const t=document.getElementById('toast');t.textContent=m;t.cla
 const esc=s=>String(s??'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 async function load(){
- try{const s=await(await fetch(P+'/scores')).json();
+ try{const s=await(await fetch(P+'/scores',{headers:{'Authorization':'Bearer '+K}})).json();
   document.getElementById('strategy').textContent=s.strategy;
   document.getElementById('strategySel').value=s.strategy;
   document.getElementById('weights').textContent=s.weights;
@@ -178,7 +178,7 @@ async function load(){
     <td>${a.remainToday??'∞'}<div class=bar><i class=${a.remainToday>=(a.dailyQuota||1)/2?'g':a.remainToday>0?'w':'b'} style=width:${a.dailyQuota?Math.min(100,a.remainToday/a.dailyQuota*100):100}%></i></div></td></tr>`}).join('')+
    `<tr><td colspan=5 class="pill i">总积分 ${p.totalPoints}</td></tr>`;
  }catch(e){document.getElementById('accounts').innerHTML='<tr><td class=bad>聚宝盆离线 · 先启动 jubaopen.py serve</td></tr>'}
- try{const c=await(await fetch(P+'/catalog')).json();
+ try{const c=await(await fetch(P+'/catalog',{headers:{'Authorization':'Bearer '+K}})).json();
   document.getElementById('catalog').innerHTML='<tr><th>模型</th><th>平台</th><th>说明</th><th>注册</th><th></th></tr>'+
    c.public.map(m=>`<tr><td><b>${esc(m.id)}</b></td><td>${esc(m.provider)}</td><td class=muted>${esc(m.note)}</td><td class=muted>${esc(m.signup)}</td>
    <td><button class="ghost sm" onclick=promptAdd('${esc(m.id)}','${esc(m.provider)}')>入池</button></td></tr>`).join('');
