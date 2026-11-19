@@ -33,6 +33,12 @@ jobs:
           echo "ACLOCAL_PATH=/usr/share/aclocal" >> $GITHUB_ENV
           aclocal --print-ac-dir
 
+      - name: 释放磁盘空间
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android/sdk/ndk-bundle 2>/dev/null || true
+          sudo apt-get clean || true
+          df -h / | tail -1
+
       - name: 预clone p4a并打libffi补丁
         run: |
           chmod +x ci/patch_p4a.sh && ./ci/patch_p4a.sh

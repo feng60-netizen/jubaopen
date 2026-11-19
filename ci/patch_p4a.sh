@@ -9,3 +9,10 @@ if [ ! -d "$P4A_DIR" ]; then
 fi
 cp ci/libffi_recipe_patched.py "$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py"
 echo "p4a就绪(branch=$BRANCH), libffi recipe已替换为release-tarball版"
+
+# 限制编译并行度(-j2), 防止runner 7GB内存OOM静默死亡; 顺带打印磁盘
+P4A_PY="$P4A_DIR/pythonforandroid/recipe.py"
+sed -i 's/from multiprocessing import cpu_count/import multiprocessing as _mp\ncpu_count = lambda: 2  # CI内存限制: 降并行防OOM/' "$P4A_PY"
+sed -i 's/from multiprocessing import cpu_count/import multiprocessing as _mp\ncpu_count = lambda: 2  # CI内存限制/' "$P4A_DIR/pythonforandroid/recipes/hostpython3/__init__.py"
+grep -n "cpu_count = lambda: 2" "$P4A_PY" "$P4A_DIR/pythonforandroid/recipes/hostpython3/__init__.py" | head -2
+df -h / | tail -1
