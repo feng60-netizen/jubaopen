@@ -108,77 +108,89 @@ def card_button(text, bg, size=14, height=46):
                color=(1, 1, 1, 1))
     return b
 
+def section_title(text):
+    """分区标题: 竖色条 + 文字, 简洁清晰"""
+    row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(18), spacing=dp(6))
+    bar = Widget(size_hint=(None, 1), width=dp(3))
+    with bar.canvas:
+        from kivy.graphics import Color, Rectangle
+        Color(*C_PRIMARY)
+        bar.rect = Rectangle(pos=bar.pos, size=bar.size)
+    bar.bind(pos=lambda i, p: setattr(bar.rect, 'pos', p),
+             size=lambda i, s: setattr(bar.rect, 'size', s))
+    t = card_label(text, 12, C_SUB, bold=True)
+    row.add_widget(bar); row.add_widget(t)
+    return row
+
+def bg_box(child, color=C_CARD, pad=8):
+    """带底色的卡片容器"""
+    box = BoxLayout(orientation='vertical', padding=dp(pad))
+    with box.canvas.before:
+        from kivy.graphics import Color, Rectangle
+        Color(*color)
+        box.bg_rect = Rectangle(pos=box.pos, size=box.size)
+    box.bind(pos=lambda i, p: setattr(box.bg_rect, 'pos', p),
+             size=lambda i, s: setattr(box.bg_rect, 'size', s))
+    box.add_widget(child)
+    return box
+
 class JubaoApp(App):
     title = '聚宝盆'
 
     def build(self):
-        root = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(8))
+        root = BoxLayout(orientation='vertical', padding=dp(14), spacing=dp(10))
 
-        # ── ① 顶部状态栏 ──
-        top = BoxLayout(orientation='vertical', size_hint=(1, None), height=dp(64), spacing=dp(2))
-        t1 = card_label('聚宝盆 JubaoPen', 20, C_PRIMARY, bold=True)
-        self.status = card_label('状态: 未启动 · 点下方按钮开始', 12, C_SUB)
+        # ── ① 顶部状态栏 (卡片) ──
+        top = BoxLayout(orientation='vertical', spacing=dp(4))
+        t1 = card_label('聚宝盆 JubaoPen', 20, C_TXT, bold=True)
+        self.status = card_label('●  未启动 · 点击下方按钮开始', 12, C_SUB)
         top.add_widget(t1); top.add_widget(self.status)
-        root.add_widget(top)
+        root.add_widget(bg_box(top, C_CARD, pad=10))
 
-        # ── ② 服务控制区 ──
-        ctrl = BoxLayout(orientation='vertical', size_hint=(1, None), spacing=dp(6))
-        ctrl.add_widget(card_label('── 服务控制 ──', 11, C_SUB))
-        self.btn_start = card_button('▶ 启动服务', C_PRIMARY, 15, 50)
+        # ── ② 服务控制 ──
+        root.add_widget(section_title('服务控制'))
+        self.btn_start = card_button('启动服务', C_PRIMARY, 15, 52)
         self.btn_start.bind(on_press=self.start)
-        ctrl.add_widget(self.btn_start)
-        row = BoxLayout(spacing=dp(6), size_hint=(1, None), height=dp(42))
-        self.btn_stop = card_button('■ 停止', C_BAD, 13, 42)
-        self.btn_refresh = card_button('↻ 刷新状态', C_CARD2, 13, 42)
+        root.add_widget(self.btn_start)
+        row = BoxLayout(spacing=dp(8), size_hint=(1, None), height=dp(40))
+        self.btn_stop = card_button('停止', C_BAD, 13, 40)
+        self.btn_refresh = card_button('刷新状态', C_CARD2, 13, 40)
         self.btn_stop.bind(on_press=self.stop_services)
         self.btn_refresh.bind(on_press=self.refresh_status)
         row.add_widget(self.btn_stop); row.add_widget(self.btn_refresh)
-        ctrl.add_widget(row)
-        root.add_widget(ctrl)
+        root.add_widget(row)
 
-        # ── ③ 功能导航区 (2×2) ──
-        nav_wrap = BoxLayout(orientation='vertical', size_hint=(1, None), spacing=dp(6))
-        nav_wrap.add_widget(card_label('── 功能入口 ──', 11, C_SUB))
-        grid = GridLayout(cols=2, spacing=dp(6), size_hint=(1, None), height=dp(96))
-        b_admin  = card_button('🖥 驾驶舱\n(管理面板)', C_CARD2, 13, 90)
-        b_models = card_button('📊 模型监控\n/scores', C_CARD2, 13, 90)
-        b_cfg    = card_button('⚙ 配置\nconfig.json', C_CARD2, 13, 90)
-        b_help   = card_button('❓ 接入说明', C_CARD2, 13, 90)
+        # ── ③ 功能入口 (2×2) ──
+        root.add_widget(section_title('功能入口'))
+        grid = GridLayout(cols=2, spacing=dp(8), size_hint=(1, None), height=dp(104))
+        b_admin  = card_button('管理面板', C_CARD2, 14, 104)
+        b_models = card_button('模型监控', C_CARD2, 14, 104)
+        b_cfg    = card_button('配置查看', C_CARD2, 14, 104)
+        b_help   = card_button('接入说明', C_CARD2, 14, 104)
         b_admin.bind(on_press=self.open_admin)
         b_models.bind(on_press=self.show_scores)
         b_cfg.bind(on_press=self.show_config)
         b_help.bind(on_press=self.show_help)
         for b in (b_admin, b_models, b_cfg, b_help):
             grid.add_widget(b)
-        nav_wrap.add_widget(grid)
-        root.add_widget(nav_wrap)
+        root.add_widget(grid)
 
-        # ── ④ 快捷信息卡 ──
+        # ── ④ 接入信息 (卡片) ──
+        root.add_widget(section_title('接入信息'))
         self.info = card_label(
-            'BaseURL  http://127.0.0.1:6120/v1\n'
-            'Key      sk-freepool-fixed-2026\n'
-            '本人Key  sk-owner-me-2026\n'
-            '模型     free-pool',
+            'BaseURL   http://127.0.0.1:6120/v1\n'
+            'API Key    sk-freepool-fixed-2026\n'
+            '管理 Key   sk-owner-me-2026\n'
+            '模型名称  free-pool',
             11, C_GOOD)
-        icard = BoxLayout(orientation='vertical', size_hint=(1, None), height=dp(96),
-                          padding=dp(8), spacing=dp(2))
-        with icard.canvas.before:
-            from kivy.graphics import Color, Rectangle
-            Color(*C_CARD)
-            icard.bg_rect = Rectangle(pos=icard.pos, size=icard.size)
-        icard.bind(pos=lambda i, p: setattr(icard.bg_rect, 'pos', p),
-                   size=lambda i, s: setattr(icard.bg_rect, 'size', s))
-        icard.add_widget(self.info)
-        root.add_widget(icard)
+        root.add_widget(bg_box(self.info, C_CARD, pad=10))
 
-        # ── ⑤ 日志区 (自适应剩余空间) ──
-        log_head = card_label('── 日志 ──', 11, C_SUB)
-        log_head.size_hint = (1, None); log_head.height = dp(16)
-        root.add_widget(log_head)
+        # ── ⑤ 日志 (自适应剩余空间) ──
+        root.add_widget(section_title('日志'))
         self.logview = ScrollView(size_hint=(1, 1))
         self.loglabel = card_label('等待操作…', 10, C_LOG)
         self.logview.add_widget(self.loglabel)
-        root.add_widget(self.logview)
+        root.add_widget(bg_box(self.logview, C_CARD, pad=8))
 
         # 启动时自动探测服务
         threading.Thread(target=self._auto_probe, daemon=True).start()
