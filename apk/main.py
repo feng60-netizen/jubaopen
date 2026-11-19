@@ -224,30 +224,48 @@ class JubaoApp(App):
         row.add_widget(self.btn_stop); row.add_widget(self.btn_refresh)
         pg.add_widget(row)
 
-        # 接入信息卡
-        self.info = L('BaseURL  http://127.0.0.1:6120/v1\n'
-                      'Key  sk-freepool-fixed-2026\n'
-                      '模型  free-pool', 11, C_GOOD)
-        pg.add_widget(card([self.info]))
+        # 接入信息行式卡
+        icard = BoxLayout(orientation='vertical', spacing=dp(2), padding=dp(14),
+                          size_hint=(1, None), height=dp(132))
+        rounded(icard, C_CARD)
+        for name, val in [('BaseURL', '127.0.0.1:6120/v1'),
+                          ('API Key', 'sk-freepool-fixed-2026'),
+                          ('管理 Key', 'sk-owner-me-2026'),
+                          ('模型', 'free-pool')]:
+            row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(28))
+            row.add_widget(L(name, 12, C_SUB))
+            row.add_widget(L(val, 12, C_GOOD, halign='right'))
+            icard.add_widget(row)
+        pg.add_widget(icard)
         pg.add_widget(Widget())
         return pg
 
     def _page_monitor(self):
-        pg = BoxLayout(orientation='vertical', spacing=dp(12))
+        pg = BoxLayout(orientation='vertical', spacing=dp(10))
         pg.add_widget(L('实时监控', 18, C_TXT, bold=True))
 
-        self._res_refs = []
-        grid = GridLayout(cols=2, spacing=dp(10), size_hint=(1, None), height=dp(180))
-        grid.add_widget(stat_card('CPU 负载', self._res_refs))
-        grid.add_widget(stat_card('内存', self._res_refs, C_GOOD))
-        grid.add_widget(stat_card('温度', self._res_refs, C_WARN))
-        grid.add_widget(stat_card('路由压力', self._res_refs, C_PRIMARY))
-        pg.add_widget(grid)
+        # 资源行式面板: 图标+标签 ......... 数值
+        res_card = BoxLayout(orientation='vertical', spacing=dp(2), padding=dp(14))
+        rounded(res_card, C_CARD)
+        self.res_rows = {}
+        for icon, name, key in [('◍', 'CPU 负载', 'cpuLoad'), ('▤', '内存占用', 'memPct'),
+                                ('♨', '设备温度', 'thermal'), ('⇅', '路由压力', 'load')]:
+            row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(34))
+            lb = L(f'{icon}  {name}', 13, C_SUB)
+            vl = L('—', 15, C_TXT, bold=True, halign='right')
+            row.add_widget(lb); row.add_widget(vl)
+            res_card.add_widget(row)
+            self.res_rows[key] = vl
+        pg.add_widget(res_card)
 
-        pg.add_widget(L('上游模型', 13, C_TXT, bold=True))
-        self.mon_models = L('点「刷新」获取', 11, C_LOG)
+        # 上游模型行式
+        pg.add_widget(L('上游模型', 14, C_TXT, bold=True))
+        self.mon_models = L('刷新获取', 11, C_LOG)
         sc = ScrollView(size_hint=(1, 1))
-        sc.add_widget(card([self.mon_models]))
+        mcard = BoxLayout(orientation='vertical', spacing=dp(2), padding=dp(14))
+        rounded(mcard, C_CARD)
+        mcard.add_widget(self.mon_models)
+        sc.add_widget(mcard)
         pg.add_widget(sc)
 
         btn = pill_button('刷新监控', C_PRIMARY, 14, 48)
@@ -398,11 +416,10 @@ class JubaoApp(App):
                 self.set_log('监控: 服务未运行')
             return
         r = s.get('resource', {})
-        vals = [str(r.get('cpuLoad', '—')), f"{r.get('memPct','—')}%",
-                str(r.get('thermal', '—')), str(r.get('load', '—'))]
-        for i, ref in enumerate(self._res_refs):
-            if i < len(vals):
-                ref.text = vals[i]
+        self.res_rows['cpuLoad'].text = str(r.get('cpuLoad', '—'))
+        self.res_rows['memPct'].text = f"{r.get('memPct','—')}%"
+        self.res_rows['thermal'].text = str(r.get('thermal', '—'))
+        self.res_rows['load'].text = str(r.get('load', '—'))
         lines = ['上游模型']
         models = s.get('models') or s.get('upstreams') or {}
         if isinstance(models, dict):
