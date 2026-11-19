@@ -11,8 +11,18 @@ cp ci/libffi_recipe_patched.py "$P4A_DIR/pythonforandroid/recipes/libffi/__init_
 echo "p4a就绪(branch=$BRANCH), libffi recipe已替换为release-tarball版"
 
 # 限制编译并行度(-j2), 防止runner 7GB内存OOM静默死亡; 顺带打印磁盘
-P4A_PY="$P4A_DIR/pythonforandroid/recipe.py"
-sed -i 's/from multiprocessing import cpu_count/import multiprocessing as _mp\ncpu_count = lambda: 2  # CI内存限制: 降并行防OOM/' "$P4A_PY"
-sed -i 's/from multiprocessing import cpu_count/import multiprocessing as _mp\ncpu_count = lambda: 2  # CI内存限制/' "$P4A_DIR/pythonforandroid/recipes/hostpython3/__init__.py"
-grep -n "cpu_count = lambda: 2" "$P4A_PY" "$P4A_DIR/pythonforandroid/recipes/hostpython3/__init__.py" | head -2
 df -h / | tail -1
+
+# CPython 3.14的compileall -j0在7GB runner上OOM(-j0=每核worker×3优化级别) → 硬杀无日志
+# 用patch文件修COMPILEALL_OPTS=-j1
+cp ci/compileall_j1.patch "$P4A_DIR/pythonforandroid/recipes/python3/patches/compileall_j1.patch"
+cp ci/compileall_j1.patch "$P4A_DIR/pythonforandroid/recipes/hostpython3/compileall_j1.patch"
+cp ci/python3_recipe_patched.py "$P4A_DIR/pythonforandroid/recipes/python3/__init__.py"
+cp ci/hostpython3_recipe_patched.py "$P4A_DIR/pythonforandroid/recipes/hostpython3/__init__.py"
+echo "compileall -j1补丁已就位(修OOM硬杀)"
+
+# 全局限编译并行=2(配合-j1, 双保险防OOM)
+P4A_PY="$P4A_DIR/pythonforandroid/recipe.py"
+sed -i 's/from multiprocessing import cpu_count/import multiprocessing as _mp\ncpu_count = lambda: 2  # CI内存限制/' "$P4A_PY"
+sed -i 's/from multiprocessing import cpu_count/import multiprocessing as _mp\ncpu_count = lambda: 2  # CI内存限制/' "$P4A_DIR/pythonforandroid/recipes/hostpython3/__init__.py"
+grep -c "cpu_count = lambda: 2" "$P4A_PY" "$P4A_DIR/pythonforandroid/recipes/hostpython3/__init__.py"

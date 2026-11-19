@@ -1,0 +1,10 @@
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -2726,7 +2726,7 @@
+ 		test/xmltestdata/c14n-20 \
+ 		test/zipimport_data
+ 
+-COMPILEALL_OPTS=-j0
++COMPILEALL_OPTS=-j1
+ 
+ TEST_MODULES=@TEST_MODULES@
