@@ -67,7 +67,10 @@ jobs:
           MON_PID=$!
           set +e
           buildozer android debug > /tmp/bd.log 2>&1 || true
-          tail -60 /tmp/bd.log
+          echo "=== 错误行扫描 ==="
+          grep -nE "Error|error:|FAILED|FAILURE|missing|not found|Exception" /tmp/bd.log | tail -20 || true
+          echo "=== bd.log尾部200 ==="
+          tail -200 /tmp/bd.log
           RC=${PIPESTATUS[1]:-1}
           set -e
           kill $MON_PID 2>/dev/null || true
