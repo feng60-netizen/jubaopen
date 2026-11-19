@@ -37,6 +37,12 @@ jobs:
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           yes | sdkmanager "platform-tools" "platforms;android-31" "build-tools;34.0.0" > /dev/null 2>&1 || true
           sdkmanager --list_installed 2>/dev/null | head -8
+          # buildozer 1.6仍找旧路径 tools/bin/sdkmanager — 建兼容软链
+          mkdir -p $SDKDIR/tools/bin $SDKDIR/tools/lib
+          ln -sf $SDKDIR/cmdline-tools/latest/bin/sdkmanager $SDKDIR/tools/bin/sdkmanager
+          ln -sf $SDKDIR/cmdline-tools/latest/bin/avdmanager $SDKDIR/tools/bin/avdmanager
+          ln -sf $SDKDIR/cmdline-tools/latest/lib $SDKDIR/tools/lib
+          $SDKDIR/tools/bin/sdkmanager --version || echo "软链sdkmanager失败"
 
       - name: 修libffi宏路径
         run: |
