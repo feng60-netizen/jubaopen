@@ -273,7 +273,9 @@ def pick_by_strategy(candidates, strategy=None):
         free = [m for m in candidates if m.get("free")]
         return (free or candidates)[0]
     if strategy == "speed_first":
-        # 并行测延迟, 最快优先
+        # 并行测延迟, 最快优先; 资源高压时跳过探测, 直接用缓存评分
+        if res_skip_probe():
+            return candidates[0]
         lat = probe_latencies(candidates)
         return sorted(candidates, key=lambda m: lat.get(m["name"], 9999))[0]
     # smart / priority: 优先级顺序, 但综合延迟微调
@@ -363,7 +365,7 @@ def jubao_record_use(model_name, amount=1):
             req = urllib.request.Request(
                 f"{JUBAO_URL}/quota/use", data=data,
                 headers={"Content-Type": "application/json"}, method="POST")
-            urllib.request.urlopen(req, timeout=3)
+            urllib.request.urlopen(req, timeout=res_probe_timeout(3))
         except Exception:
             pass  # 聚宝盆离线时静默, 保证不断连
     threading.Thread(target=_task, daemon=True).start()
@@ -378,7 +380,7 @@ def probe_latencies(models):
         t0 = time.time()
         try:
             urllib.request.urlopen(
-                urllib.request.Request(m["base_url"], method="GET"), timeout=3)
+                urllib.request.Request(m["base_url"], method="GET"), timeout=res_probe_timeout(3))
             raw[m["name"]] = (time.time() - t0) * 1000
         except urllib.error.HTTPError:
             raw[m["name"]] = (time.time() - t0) * 1000  # 4xx也算连通
@@ -386,7 +388,7 @@ def probe_latencies(models):
             raw[m["name"]] = 9999  # 不可达
     threads = [threading.Thread(target=_probe, args=(m,), daemon=True) for m in models]
     for t in threads: t.start()
-    for t in threads: t.join(timeout=3.5)
+    for t in threads: t.join(timeout=res_probe_timeout(4))
     for name in order:
         results[name] = raw.get(name, 9999)
     return results
@@ -402,7 +404,7 @@ def pick_model_fast(session_id, body, owner=False):
         alive = [m for m in ordered if not is_cooled_down(m["name"])]
     if not alive:
         alive = ordered
-    lat = probe_latencies(alive)
+    lat = probe_latencies(alive) if not res_skip_probe() else {}
     fast = sorted(alive, key=lambda m: lat.get(m["name"], 9999))
     if CONFIG.get("session_sticky") and session_id:
         bound = SESSIONS.get(session_id)
@@ -444,13 +446,16 @@ def call_upstream_fast(model_cfg, body, stream=False, connect_timeout=5):
         method="POST"
     )
     # 首包超时: 防上游假死(listen但不响应)时长时间挂起; 流式响应由调用方处理持续读
+    # 资源感知: 手机高负载/发热时收紧首包超时, 防止请求堆积拖垮整机
     fb = CONFIG.get("first_byte_timeout", 8)
-    resp = urllib.request.urlopen(req, timeout=min(fb, CONFIG.get("timeout_seconds", 60)))
+    resp = urllib.request.urlopen(req, timeout=min(fb, res_upstream_timeout()))
     return resp
 
 def try_generate(body, stream=False, session_id=None, owner=False):
     """带自动降级+加速+策略的生成; 返回 (model_name, raw_response) 或抛异常"""
     max_retries = CONFIG.get("max_retries", 3)
+    if res_sample()["load"] == "high":
+        max_retries = min(max_retries, 2)  # 资源高压: 减少重试防请求堆积
     last_err = None
     tried = set()
     # 解析 auto 路由名
@@ -496,6 +501,96 @@ def try_generate(body, stream=False, session_id=None, owner=False):
             with STATE_LOCK:
                 FAIL_COUNT[m["name"]] = FAIL_COUNT.get(m["name"], 0) + 1
     raise RuntimeError(f"全部上游失败: {last_err}")
+
+# ---------------- 本机资源监控(Android手机/低内存设备适配) ----------------
+# 读 /proc, 不依赖 psutil; 指标: 内存占用率、CPU负载、热降频压力
+# 规则:
+#   mem>85% 或 cpu负载>4.0 或热压力>0.8 → load=high: 上游超时砍到12s防请求堆积, 跳过延迟探测
+#   mem>70% 或 cpu>2.5 或热>0.4         → load=mid : 上游超时20s, 探测超时减半
+#   其余                                 → load=low : 全功能
+def _read_file(path):
+    try:
+        with open(path) as f:
+            return f.read()
+    except Exception:
+        return ""
+
+def _cpu_load():
+    try:
+        ncpu = os.cpu_count() or 1
+        v = _read_file("/proc/loadavg").split()
+        return float(v[0]) / ncpu if v else 0.0
+    except Exception:
+        return 0.0
+
+def _mem_pct():
+    try:
+        total = avail = 0
+        for line in _read_file("/proc/meminfo").splitlines():
+            if line.startswith("MemAvailable"):
+                avail = int(line.split()[1])
+            elif line.startswith("MemTotal"):
+                total = int(line.split()[1])
+        return round(100 * (total - avail) / total, 1) if total else 0.0
+    except Exception:
+        return 0.0
+
+def _thermal_pressure():
+    """Android热状态: /sys/class/thermal 最高温度, 60°C起线性加压, 85°C=1.0"""
+    try:
+        best = 0.0
+        base = "/sys/class/thermal"
+        zones = os.listdir(base) if os.path.isdir(base) else []
+        for z in zones:
+            if not z.startswith("thermal_zone"):
+                continue
+            t = _read_file(f"{base}/{z}/temp").strip()
+            if t and t.lstrip("-").isdigit():
+                c = abs(int(t)) / 1000.0
+                if c > best:
+                    best = c
+        if best <= 0:
+            return 0.0
+        return round(min(1.0, max(0.0, (best - 60) / 25)), 2)
+    except Exception:
+        return 0.0
+
+RES = {"load": "low", "memPct": 0.0, "cpuLoad": 0.0, "thermal": 0.0, "ts": 0}
+
+def res_sample():
+    """采样本机资源并更新RES; 路由前与/scores时调用(/proc读取, 轻量)"""
+    RES.update({
+        "memPct": _mem_pct(),
+        "cpuLoad": round(_cpu_load(), 2),
+        "thermal": _thermal_pressure(),
+        "ts": int(time.time()),
+    })
+    m, c, t = RES["memPct"], RES["cpuLoad"], RES["thermal"]
+    if m > 85 or c > 4.0 or t > 0.8:
+        RES["load"] = "high"
+    elif m > 70 or c > 2.5 or t > 0.4:
+        RES["load"] = "mid"
+    else:
+        RES["load"] = "low"
+    return RES
+
+def res_upstream_timeout(default=None):
+    """按资源压力调节上游超时: high→12s快速失败防请求堆积"""
+    default = default or CONFIG.get("timeout_seconds", 60)
+    load = res_sample()["load"]
+    if load == "high":
+        return min(12, default)
+    if load == "mid":
+        return min(20, default)
+    return default
+
+def res_skip_probe():
+    """高压力时跳过延迟探测(少开线程少占内存)"""
+    return res_sample()["load"] == "high"
+
+def res_probe_timeout(default=3):
+    """资源紧张时探测超时减半"""
+    return max(1, default // 2) if res_sample()["load"] != "low" else default
 
 # ---------------- HTTP Server ----------------
 class PoolHandler(http.server.BaseHTTPRequestHandler):
@@ -558,8 +653,11 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
                     "quotaWeight": round(remain_w.get(m["name"], 0.5), 2),
                 })
             rows.sort(key=lambda r: -r["score"])
+            res = res_sample()
             return self._send_json(200, {"strategy": CONFIG.get("route_mode"),
                                           "weights": "速度0.35 成功0.25 质量0.15 积分0.15 额度0.10",
+                                          "resource": {"load": res["load"], "memPct": res["memPct"],
+                                                        "cpuLoad": res["cpuLoad"], "thermal": res["thermal"]},
                                           "models": rows})
         if self.path == "/catalog":
             """TryModels 式: 免费模型目录(本池 + 公共免费源快照)"""
@@ -874,6 +972,8 @@ def main():
     log.info(f"  模型名: {CONFIG.get('model_name')}")
     log.info(f"  路由  : {CONFIG.get('route_mode')}")
     log.info(f"  粘性  : {CONFIG.get('session_sticky')}")
+    _r = res_sample()
+    log.info(f"  资源  : 负载{_r['load']} 内存{_r['memPct']}% CPU{_r['cpuLoad']} 热{_r['thermal']}")
     for m in CONFIG["models"]:
         st = "启用" if m.get("enabled", True) else "禁用"
         log.info(f"  - {m['name']} [{st}] priority={m.get('priority')} provider={m.get('provider')}")
