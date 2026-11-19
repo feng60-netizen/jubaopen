@@ -5,7 +5,7 @@ set -e
 P4A_DIR="apk/.buildozer/android/platform/python-for-android"
 BRANCH=$(grep -oP 'p4a\.branch\s*=\s*\K\S+' apk/buildozer.spec 2>/dev/null || echo master)
 if [ ! -d "$P4A_DIR" ]; then
-  git clone -b "$BRANCH" --single-branch --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
+  git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR" && cd "$P4A_DIR" && git fetch --depth 1 origin "refs/tags/$BRANCH" && git checkout -B "$BRANCH" "refs/tags/$BRANCH~0" && cd -
 fi
 cp ci/libffi_recipe_patched.py "$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py"
 echo "p4a就绪(branch=$BRANCH), libffi recipe已替换为release-tarball版"
