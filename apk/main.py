@@ -54,6 +54,11 @@ Window.background_color = (0.04, 0.04, 0.05, 1)
 
 log_lines = []
 
+from kivy.config import Config
+Config.set('graphics', 'width', '0')
+Config.set('graphics', 'height', '0')
+Config.set('graphics', 'resizable', '1')
+
 class JubaoApp(App):
     def build(self):
         self.title = '聚宝盆'
