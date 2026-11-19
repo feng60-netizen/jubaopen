@@ -46,13 +46,18 @@ jobs:
       - name: 打包
         working-directory: apk
         run: |
-          (while true; do date +%H:%M:%S; free -m | head -2; df -h / | tail -1; sleep 20; done) > /tmp/monitor.log 2>&1 &
+          (while true; do date +%H:%M:%S; free -m | sed -n 2p; sleep 20; done) &
           MON_PID=$!
-          yes | buildozer android debug || buildozer android debug
-          RC=$?
+          set +e
+          yes | buildozer android debug 2>&1 | tee /tmp/bd.log
+          RC=${PIPESTATUS[1]:-1}
+          set -e
           kill $MON_PID 2>/dev/null || true
-          tail -5 /tmp/monitor.log
-          ls -la bin/
+          echo "=== buildozer exit=$RC, 日志尾部 ==="
+          tail -5 /tmp/bd.log
+          echo "=== 监控尾部(死亡前内存) ==="
+          jobs -l || true
+          ls -la bin/ 2>/dev/null
 
       - name: 上传APK
         uses: actions/upload-artifact@v4
