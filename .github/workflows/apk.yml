@@ -71,7 +71,7 @@ jobs:
           grep -nE "Error|error:|FAILED|FAILURE|missing|not found|Exception" /tmp/bd.log | tail -20 || true
           echo "=== bd.log尾部200 ==="
           tail -200 /tmp/bd.log
-          RC=${PIPESTATUS[1]:-1}
+          RC=$?
           set -e
           kill $MON_PID 2>/dev/null || true
           echo "=== buildozer exit=$RC, 日志尾部 ==="
@@ -79,13 +79,13 @@ jobs:
           echo "=== 监控尾部(死亡前内存) ==="
           jobs -l || true
           echo "=== APK产物搜索 ==="
-          find . -name "*.apk" -mmin -120 2>/dev/null | head -5
-          ls -la bin/ 2>/dev/null
+          find . -name "*.apk" -mmin -120 2>/dev/null | head -5 || true
+          ls -la bin/ 2>/dev/null || true
           echo "=== gradle诊断 ==="
           D=apk/.buildozer/android/platform/build-arm64-v8a/dists/jubaopen
-          ls -la $D/gradlew 2>/dev/null
-          cat $D/gradle/wrapper/gradle-wrapper.properties 2>/dev/null
-          java -version 2>&1 | head -2
+          ls -la $D/gradlew 2>/dev/null || true
+          cat $D/gradle/wrapper/gradle-wrapper.properties 2>/dev/null || true
+          java -version 2>&1 | head -2 || true
 
       - name: 上传APK
         uses: actions/upload-artifact@v4
