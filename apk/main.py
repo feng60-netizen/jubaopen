@@ -73,6 +73,13 @@ if platform == 'android':
         from jnius import autoclass
         activity = autoclass('org.kivy.android.PythonActivity').mActivity
         activity.getWindow().getDecorView().setSystemUiVisibility(0x4 | 0x2 | 0x1000)
+        # 读取真实分辨率修正Kivy窗口 (SDL surface错位/黑边修复)
+        from kivy.core.window import Window
+        Resources = autoclass('android.content.res.Resources')
+        dm = Resources.getSystem().getDisplayMetrics()
+        real_w, real_h = dm.widthPixels, dm.heightPixels
+        if Window.width != real_w or Window.height != real_h:
+            Window.size = (real_w, real_h)
     except Exception:
         pass
 
@@ -160,8 +167,13 @@ class JubaoApp(App):
         self.holder = FloatLayout(size_hint=(1, 1))
         self.pages = [self._page_service(), self._page_monitor(),
                       self._page_config(), self._page_logs()]
+        self._scrollers = []
         for p in self.pages:
-            self.holder.add_widget(p)
+            sv = ScrollView(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0},
+                            bar_width=dp(2), do_scroll_x=False)
+            sv.add_widget(p)
+            self._scrollers.append(sv)
+            self.holder.add_widget(sv)
         root.add_widget(self.holder)
 
         # ═══ 底部导航 ═══
@@ -186,7 +198,8 @@ class JubaoApp(App):
 
     # ---------- 页面 ----------
     def _page_service(self):
-        pg = BoxLayout(orientation='vertical', spacing=dp(14))
+        pg = BoxLayout(orientation='vertical', spacing=dp(14), size_hint_y=None)
+        pg.bind(minimum_height=pg.setter('height'))
 
         # 问候+状态
         head = BoxLayout(orientation='vertical', spacing=dp(6), padding=dp(16),
@@ -241,7 +254,8 @@ class JubaoApp(App):
         return pg
 
     def _page_monitor(self):
-        pg = BoxLayout(orientation='vertical', spacing=dp(10))
+        pg = BoxLayout(orientation='vertical', spacing=dp(10), size_hint_y=None)
+        pg.bind(minimum_height=pg.setter('height'))
         pg.add_widget(L('实时监控', 18, C_TXT, bold=True))
 
         # 资源行式面板: 图标+标签 ......... 数值
@@ -293,11 +307,15 @@ class JubaoApp(App):
         return pg
 
     def _page_logs(self):
-        pg = BoxLayout(orientation='vertical', spacing=dp(12))
+        pg = BoxLayout(orientation='vertical', spacing=dp(12), size_hint_y=None)
+        pg.bind(minimum_height=pg.setter('height'))
         pg.add_widget(L('运行日志', 18, C_TXT, bold=True))
-        self.logview = ScrollView(size_hint=(1, 1))
+        self.logview = ScrollView(size_hint=(1, None), height=dp(420))
         self.loglabel = L('等待操作…', 10, C_LOG)
-        self.logview.add_widget(card([self.loglabel]))
+        lcard = card([self.loglabel])
+        lcard.size_hint_y = None
+        lcard.bind(minimum_height=lcard.setter('height'))
+        self.logview.add_widget(lcard)
         pg.add_widget(self.logview)
         clr = pill_button('清空日志', C_CARD_HI, 12, 42)
         clr.bind(on_press=self.clear_log)
@@ -307,14 +325,13 @@ class JubaoApp(App):
     # ---------- 行为 ----------
     def switch_tab(self, idx):
         self.tab_idx = idx
-        for i, page in enumerate(self.pages):
+        for i, sv in enumerate(self._scrollers):
             active = (i == idx)
-            page.size_hint_y = 1 if active else None
+            sv.size_hint_y = 1 if active else None
+            sv.height = dp(1) if not active else sv.height
+            sv.opacity = 1 if active else 0
             if active:
-                page.height = dp(0)  # size_hint接管
-            else:
-                page.height = dp(0)
-            page.opacity = 1 if active else 0
+                sv.do_scroll_y = True
         for i, b in enumerate(self.navbtns):
             b.color = C_TXT if i == idx else C_SUB
             b.bold = (i == idx)
