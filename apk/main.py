@@ -65,7 +65,7 @@ from kivy.uix.widget import Widget
 from kivy.uix.scrollview import ScrollView
 from kivy.core.window import Window
 from kivy.metrics import dp
-from kivy.graphics import Color, RoundedRectangle, Rectangle
+from kivy.graphics import Color, RoundedRectangle, Rectangle, Line
 from kivy.utils import platform
 
 if platform == 'android':
@@ -98,13 +98,24 @@ def L(text, size=13, color=C_TXT, bold=False, halign='left'):
     l.bind(size=lambda i, s: setattr(i, 'text_size', (s[0], None)))
     return l
 
-def rounded(w, color=C_CARD, radius=None):
-    """圆角卡片底"""
+def rounded(w, color=C_CARD, radius=None, border=True):
+    """圆角卡片底 + 1px高光描边(健壮版)"""
+    rad = radius or R
     with w.canvas.before:
         Color(*color)
-        w.rr = RoundedRectangle(pos=w.pos, size=w.size, radius=radius or R)
-    w.bind(pos=lambda i, p: setattr(w.rr, 'pos', p),
-           size=lambda i, s: setattr(w.rr, 'size', s))
+        RoundedRectangle(pos=w.pos, size=w.size, radius=rad)
+    if border:
+        line_obj = [None]
+        def upd(i=None, s=None):
+            geo = (w.x, w.y, w.width, w.height, *rad)
+            if line_obj[0] is None:
+                with w.canvas.before:
+                    Color(1, 1, 1, 0.07)
+                    line_obj[0] = Line(rounded_rectangle=geo, width=1)
+            else:
+                line_obj[0].rounded_rectangle = geo
+        upd()
+        w.bind(pos=upd, size=upd)
     return w
 
 def card(children, pad=dp(14), color=C_CARD, radius=None):
@@ -161,7 +172,7 @@ class JubaoApp(App):
         icons = ['⌂', '◔', '⚙', '☰']
         for i, t in enumerate(self.TABS):
             b = Button(text=f'{icons[i]}\n{t}', background_normal='',
-                       background_color=(0, 0, 0, 0), bold=(i == 0),
+                       background_color=(0, 0, 0, 0), bold=False,
                        font_size='10sp', font_name=CJK_FONT or 'Roboto',
                        color=C_SUB, size_hint=(1, 1), halign='center')
             b.bind(on_press=lambda *a, idx=i: self.switch_tab(idx))
@@ -175,14 +186,27 @@ class JubaoApp(App):
 
     # ---------- 页面 ----------
     def _page_service(self):
-        pg = BoxLayout(orientation='vertical', spacing=dp(12))
+        pg = BoxLayout(orientation='vertical', spacing=dp(14))
 
         # 问候+状态
         head = BoxLayout(orientation='vertical', spacing=dp(6), padding=dp(16),
-                         size_hint=(1, None), height=dp(110))
+                         size_hint=(1, None), height=dp(120))
         rounded(head, C_CARD)
-        head.add_widget(L('聚宝盆', 24, C_TXT, bold=True))
-        self.status = L('服务未启动', 13, C_SUB)
+        # 标题行: 大字 + 右侧状态点
+        tl = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(34))
+        tl.add_widget(L('聚宝盆', 24, C_TXT, bold=True))
+        self.status_dot = Widget(size_hint=(None, 1), width=dp(12))
+        with self.status_dot.canvas:
+            Color(*C_SUB)
+            self.status_dot.circ = RoundedRectangle(pos=self.status_dot.pos,
+                size=(dp(12), dp(12)), radius=[dp(6)])
+        self.status_dot.bind(pos=lambda i,p: setattr(self.status_dot.circ,'pos',p),
+                             size=lambda i,s: setattr(self.status_dot.circ,'size',s))
+        tr = BoxLayout(size_hint=(None, 1), width=dp(24))
+        tr.add_widget(self.status_dot)
+        tl.add_widget(Widget()); tl.add_widget(tr)
+        head.add_widget(tl)
+        self.status = L('服务未启动', 12, C_SUB)
         head.add_widget(self.status)
         self.status_detail = L('网关 6120 · 管理 6210', 10, C_SUB)
         head.add_widget(self.status_detail)
@@ -266,9 +290,13 @@ class JubaoApp(App):
     def switch_tab(self, idx):
         self.tab_idx = idx
         for i, page in enumerate(self.pages):
-            page.size_hint_y = 1 if i == idx else None
-            page.height = None if i == idx else dp(0)
-            page.opacity = 1 if i == idx else 0
+            active = (i == idx)
+            page.size_hint_y = 1 if active else None
+            if active:
+                page.height = dp(0)  # size_hint接管
+            else:
+                page.height = dp(0)
+            page.opacity = 1 if active else 0
         for i, b in enumerate(self.navbtns):
             b.color = C_TXT if i == idx else C_SUB
             b.bold = (i == idx)
@@ -285,6 +313,11 @@ class JubaoApp(App):
             self._mark_running()
             return
         self.status.text = '启动中…'
+        self.status_dot.canvas.before.clear()
+        with self.status_dot.canvas:
+            Color(*C_WARN)
+            self.status_dot.circ = RoundedRectangle(pos=self.status_dot.pos,
+                size=(dp(12), dp(12)), radius=[dp(6)])
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self):
@@ -304,8 +337,13 @@ class JubaoApp(App):
         self._mark_running()
 
     def _mark_running(self):
-        self.status.text = '● 运行中'
+        self.status.text = '运行中'
         self.status.color = C_GOOD
+        self.status_dot.canvas.before.clear()
+        with self.status_dot.canvas:
+            Color(*C_GOOD)
+            self.status_dot.circ = RoundedRectangle(pos=self.status_dot.pos,
+                size=(dp(12), dp(12)), radius=[dp(6)])
         self.status_detail.text = '网关 6120 ✅ · 管理 6210 ✅ · 资源监控激活'
         self.btn_start.text = '✓ 服务运行中'
         self.set_log('资源监控已激活')
@@ -318,6 +356,11 @@ class JubaoApp(App):
             self.set_log(f'停止失败: {e}')
         self.status.text = '已停止'
         self.status.color = C_SUB
+        self.status_dot.canvas.before.clear()
+        with self.status_dot.canvas:
+            Color(*C_SUB)
+            self.status_dot.circ = RoundedRectangle(pos=self.status_dot.pos,
+                size=(dp(12), dp(12)), radius=[dp(6)])
         self.status_detail.text = '网关 6120 · 管理 6210'
         self.btn_start.text = '启动服务'
         self.set_log('服务已停止')
