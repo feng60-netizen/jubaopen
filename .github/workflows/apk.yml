@@ -91,3 +91,4 @@ jobs:
           path: |
             apk/bin/*.apk
             apk/.buildozer/android/platform/**/bin/*.apk
+          include-hidden-files: true
