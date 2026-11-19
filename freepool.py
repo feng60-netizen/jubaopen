@@ -208,6 +208,53 @@ def jubao_weights():
 #   2. 挤占排队: 高峰期本人请求插队
 #   3. 冷却豁免: 本人请求允许试冷却中的模型(优先级最高, 别人不行)
 OWNER_KEY = CONFIG.get("owner_key", "sk-owner-me-2026")
+
+# ---------- 防护层: 限速 + 鉴权失败拉黑 ----------
+import collections, threading as _th
+_RATE = collections.defaultdict(collections.deque)   # ip -> [ts]
+_FAIL = collections.defaultdict(int)                 # ip -> 连续鉴权失败
+_BAN  = {}                                           # ip -> 解封时间
+_LOCK = _th.Lock()
+RATE_LIMIT = CONFIG.get("rate_limit_per_min", 120)
+BAN_AFTER  = 10
+BAN_SECS   = 600
+
+def client_ip(handler):
+    try: return handler.client_address[0]
+    except Exception: return "?"
+
+def guard_ok(handler):
+    """True=放行; False=已拦截(调用方直接return)"""
+    ip = client_ip(handler)
+    now = time.time()
+    with _LOCK:
+        if _BAN.get(ip, 0) > now:
+            return False
+        dq = _RATE[ip]
+        dq.append(now)
+        while dq and dq[0] < now - 60:
+            dq.popleft()
+        if len(dq) > RATE_LIMIT:
+            return False
+    return True
+
+def guard_hit(handler):
+    """鉴权失败时调用, 返回是否达到拉黑"""
+    ip = client_ip(handler)
+    with _LOCK:
+        _FAIL[ip] += 1
+        if _FAIL[ip] >= BAN_AFTER:
+            _BAN[ip] = time.time() + BAN_SECS
+            log.warning(f"[防护] IP {ip} 连续{BAN_AFTER}次鉴权失败, 拉黑{BAN_SECS}s")
+            _FAIL[ip] = 0
+            return True
+    return False
+
+def guard_pass(handler):
+    ip = client_ip(handler)
+    with _LOCK:
+        _FAIL.pop(ip, None)
+
 OWNER_BOOST = 40   # 评分加成, 足够把本人排到最前
 
 def is_owner(headers):
@@ -611,10 +658,17 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
         key = CONFIG.get("api_key", "")
         auth = self.headers.get("Authorization", "")
         if auth == f"Bearer {key}":
+            guard_pass(self)
             return True
-        return is_owner(self.headers)  # 本人 key 放行
+        if is_owner(self.headers):  # 本人 key 放行
+            guard_pass(self)
+            return True
+        guard_hit(self)
+        return False
 
     def do_GET(self):
+        if not guard_ok(self):
+            return self._send_json(429, {'error': {'message': '请求过于频繁'}})
         if self.path == "/v1/models":
             if not self._auth_ok():
                 return self._send_json(401, {"error": {"message": "invalid api key"}})
@@ -680,6 +734,8 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
             return self._send_json(200, {"status": "ok", "models": len(CONFIG["models"])})
         # FreePool 插件聚合接口
         if self.path == "/pool/status":
+            if not self._auth_ok():
+                return self._send_json(401, {"error": {"message": "需要鉴权"}})
             now = int(time.time())
             models = []
             total_credits = 0
@@ -742,6 +798,8 @@ class PoolHandler(http.server.BaseHTTPRequestHandler):
             return self._send_json(200, {"message": f"已对 {n} 个账号执行签到流程（示例）", "signedIn": n})
 
     def do_POST(self):
+        if not guard_ok(self):
+            return self._send_json(429, {'error': {'message': '请求过于频繁'}})
         if self.path in ("/pool/signin", "/pool/signin/"):
             # 转发到聚宝盆统一签到
             try:
