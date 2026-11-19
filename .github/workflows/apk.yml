@@ -3,7 +3,7 @@ name: 打包聚宝盆APK
 on:
   push:
     branches: [main]
-    paths: ['apk/**', '.github/workflows/apk.yml']
+    paths: ['apk/**', 'ci/**', '.github/workflows/apk.yml']
   workflow_dispatch:
 
 jobs:
