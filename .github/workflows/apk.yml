@@ -58,8 +58,13 @@ jobs:
           echo "=== 监控尾部(死亡前内存) ==="
           jobs -l || true
           echo "=== APK产物搜索 ==="
-          find . -name "*.apk" -newer /tmp -mmin -60 2>/dev/null | head -5
+          find . -name "*.apk" -mmin -120 2>/dev/null | head -5
           ls -la bin/ 2>/dev/null
+          echo "=== gradle诊断 ==="
+          D=apk/.buildozer/android/platform/build-arm64-v8a/dists/jubaopen
+          ls -la $D/gradlew 2>/dev/null
+          cat $D/gradle/wrapper/gradle-wrapper.properties 2>/dev/null
+          java -version 2>&1 | head -2
 
       - name: 上传APK
         uses: actions/upload-artifact@v4
