@@ -57,10 +57,14 @@ jobs:
           tail -5 /tmp/bd.log
           echo "=== 监控尾部(死亡前内存) ==="
           jobs -l || true
+          echo "=== APK产物搜索 ==="
+          find . -name "*.apk" -newer /tmp -mmin -60 2>/dev/null | head -5
           ls -la bin/ 2>/dev/null
 
       - name: 上传APK
         uses: actions/upload-artifact@v4
         with:
           name: jubaopen-apk
-          path: apk/bin/*.apk
+          path: |
+            apk/bin/*.apk
+            apk/.buildozer/android/platform/**/bin/*.apk
